@@ -1,0 +1,124 @@
+# ==============================================
+# 病理AI药研情报库 - Docker Compose配置
+# ==============================================
+# 用途：一键启动所有服务（应用+数据库+Redis）
+# 启动：docker-compose up -d
+# 停止：docker-compose down
+# 查看日志：docker-compose logs -f
+# ==============================================
+
+services:
+  # ==================== FastAPI应用 ====================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pathology-ai-app
+    ports:
+      - "8000:8000"  # 映射端口：主机8000 -> 容器8000
+    environment:
+      # 数据库配置
+      - DATABASE_URL=postgresql://pathology_user:pathology_pass@postgres:5432/pathology_db
+      - POSTGRES_USER=pathology_user
+      - POSTGRES_PASSWORD=pathology_pass
+      - POSTGRES_DB=pathology_db
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+
+      # Redis配置
+      - REDIS_URL=redis://redis:6379/0
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+
+      # 应用配置
+      - DEBUG=False
+      - SECRET_KEY=your-secret-key-change-in-production
+      - CORS_ORIGINS=["http://localhost:8000","http://localhost:3000"]
+
+      # PubMed配置
+      - PUBMED_EMAIL=your-email@example.com
+      - PUBMED_API_KEY=your-ncbi-api-key
+
+      # 邮件配置（可选）
+      - SMTP_HOST=smtp.gmail.com
+      - SMTP_PORT=587
+      - SMTP_USER=your-email@gmail.com
+      - SMTP_PASSWORD=your-app-password
+      - ALERT_EMAIL_FROM=your-email@gmail.com
+      - ALERT_EMAIL_TO=admin@example.com
+
+    volumes:
+      # 挂载日志目录
+      - ./logs:/app/logs
+      # 挂载静态文件
+      - ./static:/app/static
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - pathology-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ==================== PostgreSQL数据库 ====================
+  postgres:
+    image: postgres:15-alpine
+    container_name: pathology-ai-postgres
+    environment:
+      - POSTGRES_USER=pathology_user
+      - POSTGRES_PASSWORD=pathology_pass
+      - POSTGRES_DB=pathology_db
+      - POSTGRES_INITDB_ARGS=--encoding=UTF8 --locale=C
+    ports:
+      - "5432:5432"  # 可选：允许外部访问
+    volumes:
+      # 数据持久化
+      - postgres_data:/var/lib/postgresql/data
+      # 初始化脚本（如果有的话）
+      - ./database/init:/docker-entrypoint-initdb.d
+    networks:
+      - pathology-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pathology_user -d pathology_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==================== Redis缓存 ====================
+  redis:
+    image: redis:7-alpine
+    container_name: pathology-ai-redis
+    ports:
+      - "6379:6379"  # 可选：允许外部访问
+    command: redis-server --appendonly yes
+    volumes:
+      # Redis数据持久化
+      - redis_data:/data
+    networks:
+      - pathology-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+# ==================== 网络配置 ====================
+networks:
+  pathology-network:
+    driver: bridge
+
+# ==================== 数据卷 ====================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local

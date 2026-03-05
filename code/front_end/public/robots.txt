@@ -1,0 +1,15 @@
+# robots.txt - 搜索引擎爬虫指引文件
+
+# 允许所有搜索引擎爬取
+User-agent: *
+Allow: /
+
+# 告诉搜索引擎 sitemap 的位置
+Sitemap: https://你的项目名.vercel.app/sitemap.xml
+
+# 禁止爬取的目录（如果有）
+# Disallow: /admin/
+# Disallow: /private/
+
+# 爬取延迟（可选，避免给服务器造成压力）
+# Crawl-delay: 1

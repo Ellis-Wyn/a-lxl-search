@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>病理AI药研情报库 - 统一搜索</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .search-box {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        .search-form {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .search-input {
+            flex: 1;
+            min-width: 300px;
+            padding: 15px 20px;
+            font-size: 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+        }
+
+        .search-select, .search-limit {
+            padding: 15px;
+            font-size: 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+        }
+
+        .search-button {
+            padding: 15px 40px;
+            font-size: 16px;
+            font-weight: bold;
+            color: white;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+
+        .search-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .results {
+            display: none;
+        }
+
+        .results.show {
+            display: block;
+        }
+
+        .summary {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .summary h2 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .summary-stats {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            flex: 1;
+            min-width: 150px;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .result-section {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .result-section h3 {
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .result-item {
+            padding: 20px;
+            margin-bottom: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .result-title {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .result-title a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .result-title a:hover {
+            text-decoration: underline;
+        }
+
+        .result-meta {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .result-score {
+            display: inline-block;
+            padding: 4px 10px;
+            background: #667eea;
+            color: white;
+            border-radius: 15px;
+            font-size: 0.85em;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: white;
+            font-size: 1.2em;
+        }
+
+        .empty {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>病理AI药研情报库</h1>
+            <p>统一搜索 - 管线 · 文献 · 靶点</p>
+        </div>
+
+        <div class="search-box">
+            <div class="search-form">
+                <input
+                    type="text"
+                    id="searchInput"
+                    class="search-input"
+                    placeholder="输入关键词（例如：EGFR、PD-1、HER2）"
+                >
+                <select id="searchType" class="search-select">
+                    <option value="all">所有类型</option>
+                    <option value="pipeline">管线</option>
+                    <option value="publication">文献</option>
+                    <option value="target">靶点</option>
+                </select>
+                <select id="searchLimit" class="search-limit">
+                    <option value="10">10条</option>
+                    <option value="20" selected>20条</option>
+                    <option value="50">50条</option>
+                </select>
+                <button class="search-button" id="searchBtn">搜索</button>
+            </div>
+        </div>
+
+        <div id="loading" class="loading" style="display: none;">
+            搜索中...
+        </div>
+
+        <div id="results" class="results">
+            <div class="summary">
+                <h2>搜索结果</h2>
+                <div class="summary-stats">
+                    <div class="stat-item">
+                        <div class="stat-label">总结果数</div>
+                        <div class="stat-value" id="totalCount">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">管线</div>
+                        <div class="stat-value" id="pipelineCount">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">文献</div>
+                        <div class="stat-value" id="publicationCount">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">靶点</div>
+                        <div class="stat-value" id="targetCount">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="pipelineResults"></div>
+            <div id="publicationResults"></div>
+            <div id="targetResults"></div>
+        </div>
+    </div>
+
+    <script>
+        async function search() {
+            const query = document.getElementById('searchInput').value.trim();
+
+            if (!query) {
+                alert('请输入搜索关键词');
+                return;
+            }
+
+            const type = document.getElementById('searchType').value;
+            const limit = document.getElementById('searchLimit').value;
+
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('results').classList.remove('show');
+
+            try {
+                const apiUrl = '/api/search/unified?q=' + encodeURIComponent(query) + '&type=' + type + '&limit=' + limit;
+                const response = await fetch(apiUrl);
+
+                if (!response.ok) {
+                    throw new Error('HTTP ' + response.status);
+                }
+
+                const data = await response.json();
+
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('results').classList.add('show');
+
+                document.getElementById('totalCount').textContent = data.total_count;
+                document.getElementById('pipelineCount').textContent = data.results.pipelines.count;
+                document.getElementById('publicationCount').textContent = data.results.publications.count;
+                document.getElementById('targetCount').textContent = data.results.targets.count;
+
+                renderPipelines(data.results.pipelines);
+                renderPublications(data.results.publications);
+                renderTargets(data.results.targets);
+
+            } catch (error) {
+                document.getElementById('loading').style.display = 'none';
+                alert('搜索失败：' + error.message);
+            }
+        }
+
+        function renderPipelines(data) {
+            const container = document.getElementById('pipelineResults');
+            if (data.count === 0) {
+                container.innerHTML = '<div class="empty">暂无管线数据</div>';
+                return;
+            }
+
+            let html = '<div class="result-section"><h3>管线</h3>';
+            data.items.forEach(function(item) {
+                html += '<div class="result-item">';
+                html += '<div class="result-title">' + item.drug_code + '</div>';
+                html += '<div class="result-meta">';
+                html += '公司: ' + item.company_name + ' | ';
+                html += '阶段: ' + item.phase + ' | ';
+                html += '类型: ' + (item.modality || 'N/A');
+                html += '</div>';
+                html += '<div class="result-meta">' + item.indication + '</div>';
+                html += '<span class="result-score">评分: ' + item.relevance_score.toFixed(2) + '</span>';
+                html += '</div>';
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function renderPublications(data) {
+            const container = document.getElementById('publicationResults');
+            if (data.count === 0) {
+                container.innerHTML = '<div class="empty">暂无文献数据</div>';
+                return;
+            }
+
+            let html = '<div class="result-section"><h3>文献</h3>';
+            data.items.forEach(function(item) {
+                var title = item.title;
+                if (title.length > 200) {
+                    title = title.substring(0, 200) + '...';
+                }
+                var pubmedUrl = 'https://pubmed.ncbi.nlm.nih.gov/' + item.pmid + '/';
+                html += '<div class="result-item">';
+                html += '<div class="result-title"><a href="' + pubmedUrl + '" target="_blank">' + title + '</a></div>';
+                html += '<div class="result-meta">';
+                html += '期刊: ' + item.journal + ' | ';
+                html += '日期: ' + item.publication_date + ' | ';
+                html += 'PMID: <a href="' + pubmedUrl + '" target="_blank">' + item.pmid + '</a>';
+                html += '</div>';
+                html += '<span class="result-score">评分: ' + item.relevance_score.toFixed(2) + '</span>';
+                html += '</div>';
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function renderTargets(data) {
+            const container = document.getElementById('targetResults');
+            if (data.count === 0) {
+                container.innerHTML = '<div class="empty">暂无靶点数据</div>';
+                return;
+            }
+
+            let html = '<div class="result-section"><h3>靶点</h3>';
+            data.items.forEach(function(item) {
+                var aliases = 'N/A';
+                if (item.aliases && item.aliases.length > 0) {
+                    aliases = item.aliases.join(', ');
+                }
+                html += '<div class="result-item">';
+                html += '<div class="result-title">' + item.standard_name + '</div>';
+                html += '<div class="result-meta">';
+                html += '类别: ' + item.category + ' | ';
+                html += '别名: ' + aliases;
+                html += '</div>';
+                html += '<span class="result-score">评分: ' + item.relevance_score.toFixed(2) + '</span>';
+                html += '</div>';
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        document.getElementById('searchBtn').addEventListener('click', search);
+
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                search();
+            }
+        });
+    </script>
+</body>
+</html>

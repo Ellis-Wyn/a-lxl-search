@@ -1,0 +1,600 @@
+"""
+=====================================================
+统一搜索服务（Unified Search Service）
+=====================================================
+
+提供跨实体的统一搜索功能：
+- 同时搜索管线（Pipeline）、文献（Publication）、靶点（Target）
+- 智能查询扩展（同义词、全名）
+- 相关性评分排序
+- 多维度筛选（公司、阶段、MoA类型等）
+
+使用示例：
+    from services.unified_search_service import UnifiedSearchService
+
+    service = UnifiedSearchService()
+
+    # 统一搜索
+    results = service.search(
+        query="EGFR",
+        entity_type="all",
+        filters={"company": "恒瑞医药", "phase": "Phase 3"},
+        limit=20
+    )
+
+    print(results)
+    # {
+    #     "query": "EGFR",
+    #     "total_count": 150,
+    #     "results": {
+    #         "pipelines": {"count": 50, "items": [...]},
+    #         "publications": {"count": 80, "items": [...]},
+    #         "targets": {"count": 20, "items": [...]}
+    #     },
+    #     "facets": {...}
+    # }
+=====================================================
+"""
+
+from typing import List, Dict, Any, Optional
+from sqlalchemy import or_, and_
+from sqlalchemy.orm import Session
+
+from utils.database import SessionLocal
+from models.pipeline import Pipeline
+from models.publication import Publication
+from models.target import Target
+from utils.target_gene_mapping import expand_search_query
+from core.logger import get_logger
+
+logger = get_logger(__name__)
+
+
+class UnifiedSearchService:
+    """统一搜索服务"""
+
+    def __init__(self):
+        """初始化搜索服务"""
+        pass
+
+    def search(
+        self,
+        query: str,
+        entity_type: str = "all",
+        filters: Optional[Dict[str, Any]] = None,
+        limit: int = 20
+    ) -> Dict[str, Any]:
+        """
+        统一搜索入口
+
+        Args:
+            query: 搜索关键词
+            entity_type: 实体类型 (all/pipeline/publication/target)
+            filters: 筛选条件
+                - company: 公司名称
+                - phase: 阶段
+                - moa_type: MoA类型
+                - date_from/date_to: 日期范围（仅文献）
+            limit: 结果数量限制
+
+        Returns:
+            聚合搜索结果
+
+        Example:
+            >>> service = UnifiedSearchService()
+            >>> results = service.search("EGFR", entity_type="all", limit=10)
+            >>> print(results["total_count"])
+            150
+        """
+        results = {}
+        total_count = 0
+
+        # 扩展查询词
+        expanded_queries = self._expand_query(query)
+        logger.info(f"Expanded query '{query}' to {len(expanded_queries)} terms")
+
+        # 搜索管线
+        if entity_type in ["all", "pipeline"]:
+            try:
+                pipelines = self.search_pipelines(expanded_queries, filters, limit)
+                results["pipelines"] = pipelines
+                total_count += pipelines["count"]
+                logger.info(f"Found {pipelines['count']} pipelines")
+            except Exception as e:
+                logger.error(f"Pipeline search failed: {e}")
+                results["pipelines"] = {"count": 0, "items": []}
+
+        # 搜索文献
+        if entity_type in ["all", "publication"]:
+            try:
+                publications = self.search_publications(expanded_queries, filters, limit)
+                results["publications"] = publications
+                total_count += publications["count"]
+                logger.info(f"Found {publications['count']} publications")
+            except Exception as e:
+                logger.error(f"Publication search failed: {e}")
+                results["publications"] = {"count": 0, "items": []}
+
+        # 搜索靶点
+        if entity_type in ["all", "target"]:
+            try:
+                targets = self.search_targets(expanded_queries, filters, limit)
+                results["targets"] = targets
+                total_count += targets["count"]
+                logger.info(f"Found {targets['count']} targets")
+            except Exception as e:
+                logger.error(f"Target search failed: {e}")
+                results["targets"] = {"count": 0, "items": []}
+
+        # 聚合facet
+        facets = self._calculate_facets(results)
+
+        return {
+            "query": query,
+            "total_count": total_count,
+            "results": results,
+            "facets": facets
+        }
+
+    def _expand_query(self, query: str) -> List[str]:
+        """
+        扩展查询词（包含同义词）
+
+        Args:
+            query: 原始查询
+
+        Returns:
+            扩展后的查询列表
+        """
+        queries = [query]
+
+        # 尝试靶点扩展
+        try:
+            expanded = expand_search_query(
+                query,
+                include_aliases=True,
+                include_full_name=True,
+                include_gene_name=True
+            )
+            # 提取括号内的各个词
+            # 格式: ("EGFR" OR "ERBB1" OR ...)
+            import re
+            terms = re.findall(r'"([^"]+)"', expanded)
+            queries.extend(terms)
+        except Exception as e:
+            logger.debug(f"Query expansion failed for '{query}': {e}")
+
+        return list(set(queries))  # 去重
+
+    def search_pipelines(
+        self,
+        queries: List[str],
+        filters: Optional[Dict[str, Any]],
+        limit: int
+    ) -> Dict[str, Any]:
+        """
+        搜索管线
+
+        Args:
+            queries: 查询词列表
+            filters: 筛选条件
+            limit: 结果数量限制
+
+        Returns:
+            管线搜索结果
+        """
+        db = SessionLocal()
+        try:
+            query_obj = db.query(Pipeline)
+
+            # 构建关键词匹配条件
+            conditions = []
+            for q in queries:
+                conditions.append(Pipeline.drug_code.contains(q))
+                conditions.append(Pipeline.indication.contains(q))
+
+            if conditions:
+                query_obj = query_obj.filter(or_(*conditions))
+
+            # 应用筛选
+            if filters:
+                if "company" in filters:
+                    query_obj = query_obj.filter(
+                        Pipeline.company_name == filters["company"]
+                    )
+
+                if "phase" in filters:
+                    query_obj = query_obj.filter(
+                        Pipeline.phase == filters["phase"]
+                    )
+
+                if "moa_type" in filters:
+                    query_obj = query_obj.filter(
+                        Pipeline.modality == filters["moa_type"]
+                    )
+
+            # 执行查询
+            pipelines = query_obj.limit(limit * 2).all()  # 多取一些，排序后再限制
+
+            # 计算相关性得分
+            results = []
+            for p in pipelines:
+                score = self._calculate_pipeline_relevance(p, queries)
+                results.append({
+                    "id": p.id,
+                    "drug_code": p.drug_code,
+                    "company_name": p.company_name,
+                    "indication": p.indication,
+                    "phase": p.phase,
+                    "phase_raw": p.phase_raw,
+                    "modality": p.modality,
+                    "source_url": p.source_url,
+                    "first_seen_at": p.first_seen_at.isoformat() if p.first_seen_at else None,
+                    "last_seen_at": p.last_seen_at.isoformat() if p.last_seen_at else None,
+                    "relevance_score": score
+                })
+
+            # 按相关性排序
+            results.sort(key=lambda x: x["relevance_score"], reverse=True)
+
+            # 限制返回数量
+            results = results[:limit]
+
+            return {
+                "count": len(results),
+                "items": results
+            }
+        finally:
+            db.close()
+
+    def search_publications(
+        self,
+        queries: List[str],
+        filters: Optional[Dict[str, Any]],
+        limit: int
+    ) -> Dict[str, Any]:
+        """
+        搜索文献
+
+        Args:
+            queries: 查询词列表
+            filters: 筛选条件
+            limit: 结果数量限制
+
+        Returns:
+            文献搜索结果
+        """
+        db = SessionLocal()
+        try:
+            query_obj = db.query(Publication)
+
+            # 构建关键词匹配条件
+            conditions = []
+            for q in queries:
+                conditions.append(Publication.title.contains(q))
+                conditions.append(Publication.abstract.contains(q))
+
+            if conditions:
+                query_obj = query_obj.filter(or_(*conditions))
+
+            # 应用筛选
+            if filters:
+                if "journal" in filters:
+                    query_obj = query_obj.filter(
+                        Publication.journal == filters["journal"]
+                    )
+
+                if "publication_type" in filters:
+                    query_obj = query_obj.filter(
+                        Publication.publication_type == filters["publication_type"]
+                    )
+
+                if "date_from" in filters:
+                    query_obj = query_obj.filter(
+                        Publication.publication_date >= filters["date_from"]
+                    )
+
+                if "date_to" in filters:
+                    query_obj = query_obj.filter(
+                        Publication.publication_date <= filters["date_to"]
+                    )
+
+            # 执行查询
+            publications = query_obj.limit(limit * 2).all()
+
+            # 计算相关性得分
+            results = []
+            for p in publications:
+                score = self._calculate_publication_relevance(p, queries)
+                results.append({
+                    "pmid": p.pmid,
+                    "title": p.title,
+                    "abstract": p.abstract,
+                    "journal": p.journal,
+                    "publication_date": p.pub_date.isoformat() if p.pub_date else None,
+                    "publication_type": p.publication_type,
+                    "authors": None,  # Publication模型没有authors字段
+                    "doi": None,  # Publication模型没有doi字段
+                    "relevance_score": score
+                })
+
+            # 按相关性排序
+            results.sort(key=lambda x: x["relevance_score"], reverse=True)
+
+            # 限制返回数量
+            results = results[:limit]
+
+            return {
+                "count": len(results),
+                "items": results
+            }
+        finally:
+            db.close()
+
+    def search_targets(
+        self,
+        queries: List[str],
+        filters: Optional[Dict[str, Any]],
+        limit: int
+    ) -> Dict[str, Any]:
+        """
+        搜索靶点
+
+        Args:
+            queries: 查询词列表
+            filters: 筛选条件
+            limit: 结果数量限制
+
+        Returns:
+            靶点搜索结果
+        """
+        db = SessionLocal()
+        try:
+            query_obj = db.query(Target)
+
+            # 构建关键词匹配条件
+            conditions = []
+            for q in queries:
+                conditions.append(Target.standard_name.contains(q))
+
+            if conditions:
+                query_obj = query_obj.filter(or_(*conditions))
+
+            # 应用筛选
+            if filters and "category" in filters:
+                query_obj = query_obj.filter(
+                    Target.category == filters["category"]
+                )
+
+            # 执行查询
+            targets = query_obj.limit(limit * 2).all()
+
+            # 计算相关性得分
+            results = []
+            for t in targets:
+                score = self._calculate_target_relevance(t, queries)
+                results.append({
+                    "id": t.target_id,  # 使用target_id而不是id
+                    "standard_name": t.standard_name,
+                    "full_name": t.standard_name,  # 使用standard_name代替full_name
+                    "gene_name": t.standard_name,  # 使用standard_name代替gene_name
+                    "category": t.category,
+                    "aliases": t.aliases,
+                    "relevance_score": score
+                })
+
+            # 按相关性排序
+            results.sort(key=lambda x: x["relevance_score"], reverse=True)
+
+            # 限制返回数量
+            results = results[:limit]
+
+            return {
+                "count": len(results),
+                "items": results
+            }
+        finally:
+            db.close()
+
+    def _calculate_pipeline_relevance(
+        self,
+        pipeline: Pipeline,
+        queries: List[str]
+    ) -> float:
+        """
+        计算管线相关性得分
+
+        Args:
+            pipeline: 管线对象
+            queries: 查询词列表
+
+        Returns:
+            相关性得分（0-1）
+        """
+        score = 0.0
+
+        for q in queries:
+            q_lower = q.lower()
+
+            # 精确匹配药物代码（1.0分）
+            if q_lower == pipeline.drug_code.lower():
+                score += 1.0
+
+            # 包含药物代码（0.9分）
+            elif q_lower in pipeline.drug_code.lower():
+                score += 0.9
+
+            # 精确匹配公司名称（0.7分）
+            elif pipeline.company_name and q_lower == pipeline.company_name.lower():
+                score += 0.7
+
+            # 包含适应症（0.8分）
+            if pipeline.indication and q_lower in pipeline.indication.lower():
+                score += 0.8
+
+            # 精确匹配modality（0.6分）
+            if pipeline.modality and q_lower == pipeline.modality.lower():
+                score += 0.6
+
+            # 包含phase（0.5分）
+            if pipeline.phase and q_lower in pipeline.phase.lower():
+                score += 0.5
+
+        return score
+
+    def _calculate_publication_relevance(
+        self,
+        publication: Publication,
+        queries: List[str]
+    ) -> float:
+        """
+        计算文献相关性得分
+
+        Args:
+            publication: 文献对象
+            queries: 查询词列表
+
+        Returns:
+            相关性得分（0-1）
+        """
+        score = 0.0
+
+        for q in queries:
+            q_lower = q.lower()
+
+            # 标题精确匹配（1.0分）
+            if publication.title and q_lower in publication.title.lower():
+                score += 1.0
+
+            # 摘要匹配（0.9分）
+            if publication.abstract and q_lower in publication.abstract.lower():
+                score += 0.9
+
+            # 期刊匹配（0.5分）
+            if publication.journal and q_lower in publication.journal.lower():
+                score += 0.5
+
+        return score
+
+    def _calculate_target_relevance(
+        self,
+        target: Target,
+        queries: List[str]
+    ) -> float:
+        """
+        计算靶点相关性得分
+
+        Args:
+            target: 靶点对象
+            queries: 查询词列表
+
+        Returns:
+            相关性得分（0-1）
+        """
+        score = 0.0
+
+        for q in queries:
+            q_lower = q.lower()
+
+            # 精确匹配标准名称（1.0分）
+            if q_lower == target.standard_name.lower():
+                score += 1.0
+
+            # 包含标准名称（0.9分）
+            elif q_lower in target.standard_name.lower():
+                score += 0.9
+
+            # 匹配全名（0.8分）
+            if target.standard_name and q_lower in target.standard_name.lower():
+                score += 0.8
+
+            # 匹配基因名称（0.8分）
+            if target.standard_name and q_lower in target.standard_name.lower():
+                score += 0.8
+
+            # 匹配别名（0.6分）
+            if target.aliases:
+                for alias in target.aliases:
+                    if q_lower == alias.lower():
+                        score += 0.6
+                        break
+                    elif q_lower in alias.lower():
+                        score += 0.5
+                        break
+
+        return score
+
+    def _calculate_facets(self, results: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        计算筛选facet统计
+
+        Args:
+            results: 搜索结果
+
+        Returns:
+            facet统计信息
+        """
+        facets = {
+            "companies": {},
+            "phases": {},
+            "moa_types": {}
+        }
+
+        # 统计管线facets
+        if "pipelines" in results:
+            for p in results["pipelines"]["items"]:
+                # 公司统计
+                company = p.get("company_name")
+                if company:
+                    facets["companies"][company] = facets["companies"].get(company, 0) + 1
+
+                # 阶段统计
+                phase = p.get("phase")
+                if phase:
+                    facets["phases"][phase] = facets["phases"].get(phase, 0) + 1
+
+                # MoA类型统计
+                modality = p.get("modality")
+                if modality:
+                    facets["moa_types"][modality] = facets["moa_types"].get(modality, 0) + 1
+
+        return facets
+
+
+# =====================================================
+# 便捷函数
+# =====================================================
+
+def search_all(
+    query: str,
+    filters: Optional[Dict[str, Any]] = None,
+    limit: int = 20
+) -> Dict[str, Any]:
+    """
+    便捷函数：统一搜索所有实体
+
+    Args:
+        query: 搜索关键词
+        filters: 筛选条件
+        limit: 结果数量限制
+
+    Returns:
+        聚合搜索结果
+
+    Example:
+        >>> results = search_all("EGFR", limit=10)
+        >>> print(results["total_count"])
+        150
+    """
+    service = UnifiedSearchService()
+    return service.search(query=query, entity_type="all", filters=filters, limit=limit)
+
+
+# =====================================================
+# 导出
+# =====================================================
+
+__all__ = [
+    "UnifiedSearchService",
+    "search_all",
+]

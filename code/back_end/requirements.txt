@@ -1,0 +1,45 @@
+# FastAPI 核心
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# 数据库
+sqlalchemy==2.0.23
+psycopg2-binary==2.9.9
+alembic==1.13.0
+
+# 爬虫
+scrapy==2.11.0
+requests==2.31.0
+beautifulsoup4==4.12.2
+lxml==4.9.3
+playwright==1.40.0
+
+# 缓存
+redis==5.0.1
+
+# PubMed API
+biopython==1.83
+
+# 工具
+python-dotenv==1.0.0
+python-multipart==0.0.6
+email-validator==2.1.0
+apscheduler==3.10.4
+
+# 异步支持
+httpx==0.25.2
+aiofiles==23.2.1
+
+# 日志
+loguru==0.7.2
+
+# 数据处理
+pandas==2.1.4
+numpy==1.26.2
+
+# 开发工具
+pytest==7.4.3
+pytest-asyncio==0.21.1
+black==23.12.1

@@ -1,0 +1,8 @@
+{
+  "registry-mirrors": [
+    "https://docker.m.daocloud.io",
+    "https://docker.nju.edu.cn",
+    "https://mirror.ccs.tencentyun.com"
+  ],
+  "dns": ["8.8.8.8", "114.114.114.114"]
+}

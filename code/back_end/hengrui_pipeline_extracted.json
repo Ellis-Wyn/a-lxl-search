@@ -1,0 +1,372 @@
+[
+  {
+    "drug_code": "HRS-9815",
+    "target": "PSMA",
+    "indication": "前列腺癌诊断",
+    "phase": "Ⅰ期",
+    "therapy": "",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Phase 1"
+  },
+  {
+    "drug_code": "HRS-6768",
+    "target": "FAP-α",
+    "indication": "成纤维细胞活化蛋白阳性的晚期实体瘤",
+    "phase": "Ⅰ期",
+    "therapy": "",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Phase 1"
+  },
+  {
+    "drug_code": "HRS-3738",
+    "target": "CRBN-E3",
+    "indication": "多发性骨髓瘤和非霍奇金淋巴瘤 或",
+    "phase": "Ⅰ期",
+    "therapy": "单药",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Phase 1"
+  },
+  {
+    "drug_code": "HRS-1358",
+    "target": "ER PROTAC",
+    "indication": "晚期乳腺癌 或（达尔西利）",
+    "phase": "Ⅰ期",
+    "therapy": "单药",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Phase 1"
+  },
+  {
+    "drug_code": "HRS-6208",
+    "target": "",
+    "indication": "晚期恶性实体瘤",
+    "phase": "Ⅰ期",
+    "therapy": "",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Phase 1"
+  },
+  {
+    "drug_code": "HRS-3802",
+    "target": "",
+    "indication": "晚期恶性实体瘤",
+    "phase": "Ⅰ期",
+    "therapy": "",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Phase 1"
+  },
+  {
+    "drug_code": "HRS-4508",
+    "target": "",
+    "indication": "晚期恶性实体瘤",
+    "phase": "Ⅰ期",
+    "therapy": "",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Phase 1"
+  },
+  {
+    "drug_code": "HRS-7058",
+    "target": "KRAS G12C",
+    "indication": "晚期实体瘤",
+    "phase": "Ⅰ期",
+    "therapy": "",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Phase 1"
+  },
+  {
+    "drug_code": "HRS-4357",
+    "target": "PSMA",
+    "indication": "转移性去势抵抗性前列腺癌",
+    "phase": "Ⅱ期",
+    "therapy": "",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Ⅱ期"
+  },
+  {
+    "drug_code": "HRS-1167",
+    "target": "PARP1",
+    "indication": "复发性卵巢癌 （贝伐珠单抗）",
+    "phase": "Ⅱ期",
+    "therapy": "联合用药",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Ⅱ期"
+  },
+  {
+    "drug_code": "HRS-8080",
+    "target": "SERD",
+    "indication": "ER阳性/HER2阴性的不可切除或转移性乳腺癌患者 （达尔西利）",
+    "phase": "Ⅱ期",
+    "therapy": "联合用药",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Ⅱ期"
+  },
+  {
+    "drug_code": "HRS-4642",
+    "target": "KRAS G12D",
+    "indication": "KRAS G12D突变的晚期实体瘤",
+    "phase": "Ⅱ期",
+    "therapy": "联合用药",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Ⅱ期"
+  },
+  {
+    "drug_code": "HRS-6209",
+    "target": "CDK4",
+    "indication": "晚期乳腺癌 （HRS-8080/HRS-1358）",
+    "phase": "Ⅱ期",
+    "therapy": "联合用药",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Ⅱ期"
+  },
+  {
+    "drug_code": "HRS-2189",
+    "target": "KAT6",
+    "indication": "晚期乳腺癌",
+    "phase": "Ⅱ期",
+    "therapy": "联合用药",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Ⅱ期"
+  },
+  {
+    "drug_code": "HRS-5041",
+    "target": "AR PROTAC",
+    "indication": "晚期前列腺癌",
+    "phase": "Ⅱ期",
+    "therapy": "联合用药",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Ⅱ期"
+  },
+  {
+    "drug_code": "HRS-7249",
+    "target": "",
+    "indication": "高脂血症",
+    "phase": "Ⅰ期",
+    "therapy": "",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Phase 1"
+  },
+  {
+    "drug_code": "HRS-9563",
+    "target": "",
+    "indication": "高血压",
+    "phase": "Ⅰ期",
+    "therapy": "",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Phase 1"
+  },
+  {
+    "drug_code": "HRS-6934",
+    "target": "",
+    "indication": "心力衰竭",
+    "phase": "Ⅰ期",
+    "therapy": "",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Phase 1"
+  },
+  {
+    "drug_code": "HRS-5632",
+    "target": "",
+    "indication": "脂蛋白紊乱",
+    "phase": "Ⅰ期",
+    "therapy": "",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Phase 1"
+  },
+  {
+    "drug_code": "HRS-9057",
+    "target": "",
+    "indication": "心力衰竭引起的体液潴留",
+    "phase": "Ⅰ期",
+    "therapy": "",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Phase 1"
+  },
+  {
+    "drug_code": "HRS-1301",
+    "target": "",
+    "indication": "高脂血症",
+    "phase": "Ⅰ期",
+    "therapy": "",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Phase 1"
+  },
+  {
+    "drug_code": "HRS-4729",
+    "target": "GLP-1/GIP/GCG",
+    "indication": "超重或肥胖",
+    "phase": "Ⅰ期",
+    "therapy": "",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Phase 1"
+  },
+  {
+    "drug_code": "HRS-1893",
+    "target": "",
+    "indication": "梗阻性肥厚型心肌病",
+    "phase": "Ⅱ期",
+    "therapy": "",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Ⅱ期"
+  },
+  {
+    "drug_code": "HRS-5346",
+    "target": "Lp(a)抑制剂",
+    "indication": "脂蛋白紊乱",
+    "phase": "Ⅱ期",
+    "therapy": "",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Ⅱ期"
+  },
+  {
+    "drug_code": "HRS-1780",
+    "target": "盐皮质激素受体",
+    "indication": "慢性肾脏病",
+    "phase": "Ⅱ期",
+    "therapy": "",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Ⅱ期"
+  },
+  {
+    "drug_code": "HRS-7535",
+    "target": "GLP-1（口服）",
+    "indication": "2型糖尿病",
+    "phase": "Ⅲ期",
+    "therapy": "",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Phase 3"
+  },
+  {
+    "drug_code": "HRS-7085",
+    "target": "",
+    "indication": "炎症性肠病（健康受试者）",
+    "phase": "Ⅰ期",
+    "therapy": "",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Phase 1"
+  },
+  {
+    "drug_code": "HRS-9821",
+    "target": "PDE3/4",
+    "indication": "慢性阻塞性肺疾病",
+    "phase": "Ⅰ期",
+    "therapy": "",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Phase 1"
+  },
+  {
+    "drug_code": "HRS-9813",
+    "target": "",
+    "indication": "特发性肺纤维化",
+    "phase": "Ⅰ期",
+    "therapy": "",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Phase 1"
+  },
+  {
+    "drug_code": "HRS-5965",
+    "target": "Factor B",
+    "indication": "未经治阵发性睡眠性血红蛋白尿",
+    "phase": "Ⅲ期",
+    "therapy": "",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Phase 3"
+  },
+  {
+    "drug_code": "HRS-7450",
+    "target": "",
+    "indication": "急性缺血性卒中",
+    "phase": "Ⅰ期",
+    "therapy": "",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Phase 1"
+  },
+  {
+    "drug_code": "HRS-2129",
+    "target": "",
+    "indication": "疼痛",
+    "phase": "Ⅰ期",
+    "therapy": "",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Phase 1"
+  },
+  {
+    "drug_code": "HRS-4029",
+    "target": "",
+    "indication": "急性缺血性卒中",
+    "phase": "Ⅰ期",
+    "therapy": "",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Phase 1"
+  },
+  {
+    "drug_code": "HRS-9231",
+    "target": "",
+    "indication": "脑部和全身MRI检测",
+    "phase": "Ⅱ期",
+    "therapy": "",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Ⅱ期"
+  },
+  {
+    "drug_code": "HRS-2183",
+    "target": "",
+    "indication": "革兰阴性菌引起的严重感染",
+    "phase": "Ⅰ期",
+    "therapy": "",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Phase 1"
+  },
+  {
+    "drug_code": "HRS-5635",
+    "target": "HBV siRNA",
+    "indication": "慢性乙肝",
+    "phase": "Ⅱ期",
+    "therapy": "",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Ⅱ期"
+  },
+  {
+    "drug_code": "HRS-8427",
+    "target": "头孢地尔衍生",
+    "indication": "复杂性尿路感染",
+    "phase": "Ⅲ期",
+    "therapy": "",
+    "company": "恒瑞医药",
+    "source_url": "https://www.hengrui.com/RD/pipeline.html",
+    "phase_normalized": "Phase 3"
+  }
+]
