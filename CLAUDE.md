@@ -1,8 +1,8 @@
 # 病理AI药研情报库 - 项目记忆文档
 
-**项目状态**: ✅ 前后端100%完成，可投入生产环境
-**最后更新**: 2026-02-08
-**版本**: v2.0.0 - 前端UI完整版
+**项目状态**: ✅ 前后端100%完成，前端已部署至Vercel
+**最后更新**: 2026-03-06
+**版本**: v2.1.0 - Vercel生产部署版
 
 ---
 
@@ -203,6 +203,99 @@ A_lxl_search/
 
 ---
 
+## 🌐 生产部署
+
+### 前端部署（Vercel）✅ 2026-03-06完成
+
+前端已成功部署到 Vercel，配置文件已就位：
+
+**关键配置文件**:
+- `vercel.json` - 根目录配置，指定构建命令和输出目录
+- `code/front_end/vercel.json` - 前端子目录配置，包含URL重写规则
+
+**Vercel配置说明**:
+```json
+{
+  "installCommand": "cd code/front_end && npm install",
+  "buildCommand": "cd code/front_end && npm run build",
+  "outputDirectory": "code/front_end/dist",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
+```
+
+**重要设计决策**:
+1. **URL重写规则**: 解决React SPA客户端路由的404问题
+   - 所有路径重定向到 `index.html`
+   - 让React Router接管路由处理
+2. **子目录构建**: 支持monorepo结构，后端在 `code/back_end`，前端在 `code/front_end`
+3. **installCommand**: 确保依赖安装在正确的子目录
+
+**部署方式**:
+- GitHub集成自动部署（推荐）
+- Vercel CLI手动部署
+
+**前端部署地址**: （需要用户添加实际Vercel域名）
+
+### 后端部署（待完成）⚠️
+
+**当前状态**: 后端仅在本地运行（localhost:8000）
+
+**问题**: 前端在Vercel公网环境无法访问本地后端
+
+**解决方案（选择其一）**:
+
+#### 方案1：部署到Zeabur（推荐）⭐
+- 注册 [Zeabur](https://zeabur.com)
+- 导入GitHub仓库
+- Zeabur自动识别并部署Docker配置
+- 获得公网API地址（如：`https://your-api.zeabur.app`）
+
+#### 方案2：部署到Railway
+- 注册 [Railway](https://railway.app)
+- 连接GitHub仓库
+- 配置PostgreSQL和Redis
+- 获取API公网地址
+
+#### 方案3：云服务器部署
+- 使用已有的云服务器（阿里云、腾讯云）
+- 使用Docker Compose部署
+- 配置域名和SSL证书
+
+**配置步骤（后端部署后）**:
+1. 更新前端API配置：`src/api/axios.js`
+2. 修改 `baseURL` 为生产环境API地址
+3. 重新部署前端到Vercel
+
+**当前API配置**:
+```javascript
+// src/api/axios.js (第4行)
+baseURL: 'http://localhost:8000',  // ❌ 仅适用于本地开发
+// 需要修改为: 'https://your-api.zeabur.app'
+```
+
+### Docker本地部署
+
+后端支持完整的Docker部署，使用Docker Compose一键启动所有服务：
+
+```bash
+cd code/back_end
+docker-compose up -d
+```
+
+**服务配置**:
+- FastAPI应用：端口8000
+- PostgreSQL：端口5432
+- Redis：端口6379
+
+详见：`code/back_end/DOCKER_GUIDE.md`
+
+---
+
 ## 🚀 快速开始
 
 ### 启动服务
@@ -269,7 +362,7 @@ curl -X POST "http://localhost:8000/api/crawlers/trigger"
 
 ## 📊 项目完成度
 
-**总体进度**: 100% ✅
+**总体进度**: 95% ⚠️（前端已部署，后端待部署到公网）
 
 | 模块 | 状态 | 完成度 |
 |------|------|--------|
@@ -283,7 +376,10 @@ curl -X POST "http://localhost:8000/api/crawlers/trigger"
 | Redis缓存 | ✅ | 100% |
 | 爬虫调度 | ✅ | 100% |
 | 数据归一化 | ✅ | 100% |
-| 前端UI | ✅ | 100% (2026-02-08完成) |
+| 前端UI | ✅ | 100% (已部署至Vercel) |
+| 前端生产部署 | ✅ | 100% (2026-03-06完成) |
+| 后端本地部署 | ✅ | 100% |
+| 后端生产部署 | ⚠️ | 0% (待完成) |
 | Docker部署 | ✅ | 100% |
 | 文档完善 | ✅ | 100% |
 | 专利模块 | ⏳ | 0% (可选功能) |
@@ -323,6 +419,22 @@ curl -X POST "http://localhost:8000/api/crawlers/trigger"
 ✅ **响应式设计**: 移动端和桌面端自适应
 ✅ **玻璃拟态**: backdrop-filter实现半透明模糊效果
 
+### Vercel部署设计决策 ✅ 2026-03-06新增
+✅ **URL重写规则**: 解决React SPA客户端路由404问题
+  - 所有路径重定向到 `index.html`
+  - React Router接管路由处理
+  - 支持直接访问子路由和刷新页面
+✅ **Monorepo结构**: 支持前后端分离的目录结构
+  - 后端在 `code/back_end`
+  - 前端在 `code/front_end`
+  - Vercel从根目录构建，但输出指定到子目录
+✅ **installCommand配置**: 确保依赖安装在正确的子目录
+  - 防止"command not found"错误
+  - 支持复杂的monorepo构建流程
+✅ **GitHub集成**: 自动部署，无需手动操作
+  - 推送到main分支自动触发部署
+  - 支持预览部署（Pull Request）
+
 ---
 
 ## 📝 重要文件清单
@@ -359,6 +471,31 @@ curl -X POST "http://localhost:8000/api/crawlers/trigger"
 1. **db_viewer.py** - 数据库查看工具 ⭐
 2. **validate_system.py** - 系统验证脚本 ⭐
 3. **test_crawlers.py** - 爬虫测试脚本 ⭐
+
+---
+
+## ⚠️ 已知问题与待办事项
+
+### 当前问题
+1. **前后端连接问题** ⚠️ 优先级：高
+   - **问题**: 前端已部署到Vercel（公网），后端仅在本地运行
+   - **影响**: 前端无法访问后端API，应用功能不可用
+   - **解决**: 需要将后端部署到公网（Zeabur/Railway/云服务器）
+   - **状态**: 等待后端部署
+
+2. **API配置待更新** ⚠️ 优先级：高
+   - **文件**: `code/front_end/src/api/axios.js`
+   - **当前**: `baseURL: 'http://localhost:8000'`
+   - **需要**: 修改为生产环境API地址
+
+### 部署待办清单
+- [ ] 选择后端部署平台（Zeabur/Railway/云服务器）
+- [ ] 部署后端API到公网
+- [ ] 更新前端API配置文件
+- [ ] 配置生产环境CORS设置
+- [ ] 测试前后端连接
+- [ ] 配置环境变量（生产数据库、Redis等）
+- [ ] 设置域名和SSL证书
 
 ---
 
@@ -419,6 +556,18 @@ python db_viewer.py stats
 
 ## 📅 更新日志
 
+### 2026-03-06
+- ✅ **Vercel部署配置完成** - 前端成功部署到Vercel
+- ✅ **解决NOT_FOUND错误** - 添加vercel.json配置URL重写规则
+- ✅ **子目录构建配置** - 支持monorepo结构，指定构建和输出目录
+- ✅ **installCommand修复** - 确保依赖正确安装在子目录
+- ✅ **GitHub集成部署** - 代码推送自动触发Vercel部署
+- ⚠️ **待办**: 后端API需要部署到公网，前后端才能正常连接
+- 📝 提交记录：
+  - `ac15f2f` - 修复 Vercel 构建失败问题：添加 installCommand
+  - `1489d55` - 在根目录添加 Vercel 配置
+  - `e208ca8` - 修复 Vercel 部署 NOT_FOUND 错误
+
 ### 2026-02-08
 - ✅ **前端UI完整实现** - React + Vite + Tailwind CSS 技术栈
 - ✅ **4个核心页面** - 统一搜索、靶点浏览、管线列表、文献流、靶点详情
@@ -466,6 +615,6 @@ python db_viewer.py stats
 
 ---
 
-**最后更新**: 2026-02-08
-**项目状态**: ✅ 前后端100%完成，可投入生产环境
-**维护模式**: 稳定运行，按需扩展
+**最后更新**: 2026-03-06
+**项目状态**: ✅ 前端已部署至Vercel，⚠️ 待后端部署到公网
+**维护模式**: 前端生产就绪，后端待部署
