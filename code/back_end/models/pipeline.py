@@ -10,7 +10,7 @@ Pipeline ORM 模型（管线表）
 =====================================================
 """
 
-from sqlalchemy import Column, String, Text, DateTime, Boolean
+from sqlalchemy import Column, String, Text, DateTime, Boolean, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -110,10 +110,30 @@ class Pipeline(Base):
     )
 
     # =====================================================
+    # 并发控制（乐观锁）
+    # =====================================================
+    version = Column(
+        Integer,
+        nullable=False,
+        default=1,
+        comment="乐观锁版本号，每次更新自动递增（通过触发器）"
+    )
+
+    # =====================================================
     # 时间戳
     # =====================================================
     created_at = Column(DateTime, default=datetime.utcnow, comment="创建时间")
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, comment="更新时间")
+
+    # =====================================================
+    # 软删除（P2优化）
+    # =====================================================
+    deleted_at = Column(
+        DateTime,
+        nullable=True,
+        index=True,
+        comment="软删除时间（NULL=未删除，非NULL=已删除）"
+    )
 
     # =====================================================
     # 关系（ORM 关联）
@@ -123,6 +143,14 @@ class Pipeline(Base):
         "TargetPipeline",
         back_populates="pipeline",
         cascade="all, delete-orphan"
+    )
+
+    # 管线事件历史
+    events = relationship(
+        "PipelineEvent",
+        back_populates="pipeline",
+        cascade="all, delete-orphan",
+        order_by="desc(PipelineEvent.occurred_at)"
     )
 
     # =====================================================
@@ -213,6 +241,61 @@ class Pipeline(Base):
         return self.get_phase_order() > other_pipeline.get_phase_order()
 
     # =====================================================
+    # 软删除方法（P2优化）
+    # =====================================================
+
+    def soft_delete(self) -> None:
+        """
+        软删除：标记为已删除，不真正删除数据
+
+        设置 deleted_at 为当前时间戳
+        """
+        self.deleted_at = datetime.utcnow()
+
+    def restore(self) -> None:
+        """
+        恢复：清除删除标记
+
+        将 deleted_at 设置为 NULL
+        """
+        self.deleted_at = None
+
+    def is_deleted(self) -> bool:
+        """
+        判断是否已删除
+
+        返回：
+            bool: True=已删除，False=未删除
+        """
+        return self.deleted_at is not None
+
+    @classmethod
+    def active_only(cls, query):
+        """
+        筛选仅活跃的（未删除）记录
+
+        参数：
+            query: SQLAlchemy Query 对象
+
+        返回：
+            Query: 过滤后的查询对象
+        """
+        return query.filter(cls.deleted_at.is_(None))
+
+    @classmethod
+    def deleted_only(cls, query):
+        """
+        筛选仅已删除的记录
+
+        参数：
+            query: SQLAlchemy Query 对象
+
+        返回：
+            Query: 过滤后的查询对象
+        """
+        return query.filter(cls.deleted_at.isnot(None))
+
+    # =====================================================
     # 序列化方法
     # =====================================================
 
@@ -241,6 +324,8 @@ class Pipeline(Base):
             "discontinued_at": self.discontinued_at.isoformat() if self.discontinued_at else None,
             "is_combination": self.is_combination,
             "combination_drugs": self.combination_drugs,
+            "deleted_at": self.deleted_at.isoformat() if self.deleted_at else None,
+            "is_deleted": self.is_deleted(),
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

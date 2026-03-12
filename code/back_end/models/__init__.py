@@ -14,6 +14,7 @@ from .relationships import TargetPublication, TargetPipeline
 from .crawler_execution_log import CrawlerExecutionLog
 from .crawler_statistics import CrawlerStatistics
 from .cde_event import CDEEvent
+from .pipeline_event import PipelineEvent, EventType
 
 __all__ = [
     "Target",
@@ -24,6 +25,8 @@ __all__ = [
     "CrawlerExecutionLog",
     "CrawlerStatistics",
     "CDEEvent",
+    "PipelineEvent",
+    "EventType",
 ]
 
 

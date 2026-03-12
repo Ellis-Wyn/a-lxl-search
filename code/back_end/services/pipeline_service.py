@@ -261,7 +261,7 @@ class PipelineService:
         try:
             # TODO: 需要实现Target-Pipeline关联表后才能真正按target_id查询
             # 当前先返回所有管线，后续添加关联逻辑
-            query = db.query(Pipeline)
+            query = db.query(Pipeline).filter(Pipeline.deleted_at.is_(None))  # P2: 仅查询未删除的记录
 
             # 公司筛选
             if company_filter:
@@ -342,17 +342,26 @@ class PipelineService:
 
             if standardized_name:
                 # 使用标准化后的公司名称
-                query = db.query(Pipeline).filter(Pipeline.company_name == standardized_name)
+                query = db.query(Pipeline).filter(
+                    Pipeline.company_name == standardized_name,
+                    Pipeline.deleted_at.is_(None)  # P2: 仅查询未删除的记录
+                )
                 logger.info(f"Company name '{company_name}' normalized to: {standardized_name}")
             else:
                 # 未找到映射，尝试模糊匹配
                 fuzzy_match = mapper.find_match(company_name)
                 if fuzzy_match:
-                    query = db.query(Pipeline).filter(Pipeline.company_name == fuzzy_match)
+                    query = db.query(Pipeline).filter(
+                        Pipeline.company_name == fuzzy_match,
+                        Pipeline.deleted_at.is_(None)  # P2: 仅查询未删除的记录
+                    )
                     logger.info(f"Company name '{company_name}' fuzzy matched to: {fuzzy_match}")
                 else:
                     # 使用原始名称
-                    query = db.query(Pipeline).filter(Pipeline.company_name == company_name)
+                    query = db.query(Pipeline).filter(
+                        Pipeline.company_name == company_name,
+                        Pipeline.deleted_at.is_(None)  # P2: 仅查询未删除的记录
+                    )
                     logger.warning(f"Company name '{company_name}' not found in mapper, using original")
 
             # 阶段筛选
@@ -541,8 +550,8 @@ class PipelineService:
 
         db: Session = SessionLocal()
         try:
-            # 构建查询
-            query = db.query(Pipeline)
+            # 构建查询 - P2: 仅查询未删除的记录
+            query = db.query(Pipeline).filter(Pipeline.deleted_at.is_(None))
 
             # 应用过滤条件
             if company_name:
@@ -556,7 +565,7 @@ class PipelineService:
             total_pipelines = query.count()
 
             # 按公司统计
-            by_company_query = query if not company_name else db.query(Pipeline)
+            by_company_query = db.query(Pipeline).filter(Pipeline.deleted_at.is_(None))  # P2: 仅查询未删除的记录
             if company_name:
                 from utils.company_name_mapper import get_company_mapper
                 mapper = get_company_mapper()
@@ -593,10 +602,11 @@ class PipelineService:
             target_counts = target_query.all()
             by_target = {str(target_id): count for target_id, count in target_counts}
 
-            # Phase Jump 统计（最近30天）
+            # Phase Jump 统计（最近30天）- P2: 仅查询未删除的记录
             thirty_days_ago = datetime.now() - timedelta(days=30)
             phase_jumps = db.query(Pipeline).filter(
-                Pipeline.updated_at >= thirty_days_ago
+                Pipeline.updated_at >= thirty_days_ago,
+                Pipeline.deleted_at.is_(None)  # P2: 仅查询未删除的记录
             ).count()
 
             logger.info(
@@ -649,8 +659,8 @@ class PipelineService:
 
         db: Session = SessionLocal()
         try:
-            # 构建查询
-            query = db.query(Pipeline)
+            # 构建查询 - P2: 仅查询未删除的记录
+            query = db.query(Pipeline).filter(Pipeline.deleted_at.is_(None))
 
             # 关键词搜索
             if keyword:

@@ -37,6 +37,7 @@ from utils.database import SessionLocal
 from models.pipeline import Pipeline
 from models.target import Target
 from models.relationships import TargetPipeline
+from models.pipeline_event import PipelineEvent, EventType
 from services.phase_mapper import PhaseMapper
 from core.logger import get_logger
 
@@ -802,7 +803,9 @@ class CompanySpiderBase:
         targets: list
     ) -> int:
         """
-        将靶点关联到管线
+        将靶点关联到管线，并记录靶点变更事件
+
+        注意：此方法不自动提交，由调用方统一管理事务
 
         Args:
             db: 数据库会话
@@ -813,10 +816,18 @@ class CompanySpiderBase:
         Returns:
             成功关联的靶点数量
         """
+        # 获取现有靶点（用于变更检测）
+        existing_target_names = {
+            tp.target.standard_name
+            for tp in pipeline.targets
+        }
+
         linked_count = 0
+        new_target_names = set()
         # 判断靶点来源：爬虫提取的非空列表 vs 文本回退提取
         evidence_source = "爬虫提取" if item.targets and len(item.targets) > 0 else "文本提取"
 
+        # === 第一阶段：关联靶点 ===
         for target_name in targets:
             try:
                 target = db.query(Target).filter(
@@ -827,6 +838,7 @@ class CompanySpiderBase:
                 ).first()
 
                 if not target:
+                    # 创建新靶点（不立即提交）
                     target = Target(
                         standard_name=target_name,
                         aliases=[],
@@ -834,7 +846,8 @@ class CompanySpiderBase:
                         description=f"自动创建于管线爬虫: {item.drug_code}"
                     )
                     db.add(target)
-                    db.commit()
+                    # flush 获取 ID，但不提交事务
+                    db.flush()
                     db.refresh(target)
 
                 # 检查是否已存在关联
@@ -852,14 +865,169 @@ class CompanySpiderBase:
                     )
                     db.add(link)
                     linked_count += 1
+                    new_target_names.add(target_name)
 
             except Exception as e:
-                logger.warning(f"Failed to link target {target_name}: {e}")
+                logger.error(f"Failed to link target {target_name} for {item.drug_code}: {e}", exc_info=True)
 
-        if linked_count > 0:
-            db.commit()
+        # === 第二阶段：批量记录靶点变更事件 ===
+        # 新增的靶点
+        for target_name in (new_target_names - existing_target_names):
+            self._record_event(
+                db, pipeline, EventType.TARGET_ADDED,
+                {
+                    "target_name": target_name,
+                    "evidence_source": evidence_source
+                }
+            )
+
+        # 移除的靶点（存在于现有但不在新列表中）
+        removed_targets = existing_target_names - set(targets)
+        for removed_target in removed_targets:
+            self._record_event(
+                db, pipeline, EventType.TARGET_REMOVED,
+                {
+                    "target_name": removed_target,
+                    "reason": "no_longer_extracted"
+                }
+            )
 
         return linked_count
+
+    def _record_event(
+        self,
+        db: Session,
+        pipeline: Pipeline,
+        event_type: str,
+        event_data: dict
+    ) -> Optional[PipelineEvent]:
+        """
+        记录管线事件
+
+        注意：此方法不自动提交，由调用方统一管理事务
+
+        Args:
+            db: 数据库会话
+            pipeline: 管线对象
+            event_type: 事件类型
+            event_data: 事件数据
+
+        Returns:
+            创建的事件对象，失败返回 None
+        """
+        try:
+            event = PipelineEvent.create(
+                db=db,
+                pipeline_id=pipeline.pipeline_id,
+                event_type=event_type,
+                event_data=event_data,
+                source="crawler",
+                source_detail=self.name
+            )
+            logger.debug(
+                f"Event recorded: {event_type} for {pipeline.drug_code} "
+                f"- {event_data}"
+            )
+            return event
+        except Exception as e:
+            # 事件记录失败不应阻断主流程，但需要记录错误
+            logger.error(
+                f"Failed to record event {event_type} for {pipeline.drug_code}: {e}",
+                exc_info=True
+            )
+            return None
+
+    def _calculate_phase_duration_days(
+        self,
+        pipeline: Pipeline,
+        old_phase: str
+    ) -> Optional[int]:
+        """
+        计算在旧阶段持续的天数
+
+        通过查询最后一次阶段变更事件来计算
+
+        Args:
+            pipeline: 管线对象
+            old_phase: 旧阶段名称
+
+        Returns:
+            持续天数，无法计算返回 None
+        """
+        try:
+            # 查询该管线最后一次 phase_changed 为 old_phase 的事件
+            from models.pipeline_event import PipelineEvent
+            db = SessionLocal()
+            try:
+                last_phase_event = db.query(PipelineEvent).filter(
+                    PipelineEvent.pipeline_id == pipeline.pipeline_id,
+                    PipelineEvent.event_type == EventType.PHASE_CHANGED
+                ).order_by(PipelineEvent.occurred_at.desc()).first()
+
+                if last_phase_event and last_phase_event.event_data.get("new_phase") == old_phase:
+                    # 从上次变更到现在的时间
+                    from datetime import datetime
+                    return (datetime.utcnow() - last_phase_event.occurred_at).days
+
+                # 如果没有历史事件，使用 first_seen_at 估算
+                if pipeline.first_seen_at:
+                    return (datetime.utcnow() - pipeline.first_seen_at).days
+
+            finally:
+                db.close()
+
+        except Exception as e:
+            logger.warning(f"Failed to calculate phase duration for {pipeline.drug_code}: {e}")
+
+        return None
+
+    def _detect_and_record_phase_change(
+        self,
+        db: Session,
+        pipeline: Pipeline,
+        old_phase: str,
+        new_phase: str
+    ) -> Optional[PipelineEvent]:
+        """
+        检测并记录 Phase 变更事件
+
+        Args:
+            db: 数据库会话
+            pipeline: 管线对象
+            old_phase: 旧阶段
+            new_phase: 新阶段
+
+        Returns:
+            创建的事件对象，无变更返回 None
+        """
+        if old_phase == new_phase:
+            return None
+
+        # 计算在旧阶段的天数
+        days_in_old_phase = self._calculate_phase_duration_days(pipeline, old_phase)
+
+        # 判断是否是正向推进
+        is_forward = self._is_phase_forward(old_phase, new_phase)
+
+        # 检测是否跳过阶段
+        phase_order = {"preclinical": 1, "I": 2, "II": 3, "III": 4, "filing": 5, "approved": 6}
+        old_order = phase_order.get(old_phase.lower().replace("phase ", "").strip(), 0)
+        new_order = phase_order.get(new_phase.lower().replace("phase ", "").strip(), 0)
+        jumped = is_forward and (new_order - old_order) > 1
+
+        # 记录事件
+        return self._record_event(
+            db=db,
+            pipeline=pipeline,
+            event_type=EventType.PHASE_CHANGED,
+            event_data={
+                "old_phase": old_phase,
+                "new_phase": new_phase,
+                "is_forward": is_forward,
+                "jumped": jumped,
+                "days_in_old_phase": days_in_old_phase
+            }
+        )
 
     def save_to_database(self, item: PipelineDataItem) -> bool:
         """
@@ -919,27 +1087,68 @@ class CompanySpiderBase:
             ).first()
 
             if existing:
-                # 更新现有管线
+                # === 更新现有管线 ===
                 old_phase = existing.phase
-                if old_phase != phase_normalized and self._is_phase_forward(old_phase, phase_normalized):
-                    self._send_phase_jump_alert(item, old_phase, phase_normalized)
+                pipeline = existing
 
-                existing.phase = phase_normalized
-                existing.phase_raw = item.phase
-                existing.last_seen_at = datetime.utcnow()
+                # 检测 Phase 变更
+                if old_phase != phase_normalized:
+                    # Phase 变化：检测是否是 Phase Jump 并发送告警
+                    if self._is_phase_forward(old_phase, phase_normalized):
+                        self._send_phase_jump_alert(item, old_phase, phase_normalized)
+                    # 记录 Phase 变更事件
+                    self._detect_and_record_phase_change(
+                        db, pipeline, old_phase, phase_normalized
+                    )
 
-                if existing.status == 'discontinued' and item.status == 'active':
-                    existing.status = 'active'
-                    existing.discontinued_at = None
+                pipeline.phase = phase_normalized
+                pipeline.phase_raw = item.phase
+                pipeline.last_seen_at = datetime.utcnow()
+
+                # 检测重新激活（从 discontinued 恢复为 active）
+                if pipeline.status == 'discontinued' and item.status == 'active':
+                    pipeline.status = 'active'
+                    days_discontinued = (
+                        (datetime.utcnow() - pipeline.discontinued_at).days
+                        if pipeline.discontinued_at else None
+                    )
+                    pipeline.discontinued_at = None
+                    # 记录重新激活事件
+                    self._record_event(
+                        db, pipeline, EventType.REACTIVATED,
+                        {"days_discontinued": days_discontinued}
+                    )
                     logger.info(f"Re-activated pipeline: {item.drug_code}")
 
-                if detected_modality and moa_confidence >= 0.7:
-                    existing.modality = detected_modality
+                # 检测新终止（从 active 变为 discontinued）
+                if pipeline.status == 'active' and item.status == 'discontinued':
+                    pipeline.status = 'discontinued'
+                    pipeline.discontinued_at = datetime.utcnow()
+                    # 记录终止事件
+                    self._record_event(
+                        db, pipeline, EventType.DISCONTINUED,
+                        {
+                            "reason": "crawler_marked_discontinued",
+                            "last_phase": old_phase,
+                            "days_active": (
+                                datetime.utcnow() - pipeline.first_seen_at
+                            ).days if pipeline.first_seen_at else None
+                        }
+                    )
+                    logger.warning(f"Marked as discontinued: {item.drug_code}")
 
-                db.commit()
-                pipeline = existing
+                # 检测 Modality 变更
+                if detected_modality and moa_confidence >= 0.7:
+                    if pipeline.modality != detected_modality:
+                        old_modality = pipeline.modality
+                        pipeline.modality = detected_modality
+                        # 记录 Modality 变更事件
+                        self._record_event(
+                            db, pipeline, EventType.MODALITY_CHANGED,
+                            {"old_modality": old_modality, "new_modality": detected_modality}
+                        )
             else:
-                # 创建新管线
+                # === 创建新管线 ===
                 pipeline = Pipeline(
                     drug_code=item.drug_code,
                     company_name=item.company_name,
@@ -955,8 +1164,19 @@ class CompanySpiderBase:
                     combination_drugs=json.dumps(item.combination_drugs) if item.combination_drugs else None,
                 )
                 db.add(pipeline)
-                db.commit()
-                db.refresh(pipeline)
+                # flush 获取 ID，但不提交事务
+                db.flush()
+
+                # 记录创建事件（在同一事务内）
+                self._record_event(
+                    db, pipeline, EventType.CREATED,
+                    {
+                        "initial_phase": phase_normalized,
+                        "initial_indication": item.indication,
+                        "initial_modality": pipeline.modality,
+                        "initial_targets": item.targets or []
+                    }
+                )
 
             # === 4. 处理靶点关联 ===
             targets_extracted = [t for t in (item.targets or []) if t and t.strip()]
@@ -968,7 +1188,11 @@ class CompanySpiderBase:
                 linked_count = self._link_targets_to_pipeline(db, pipeline, item, targets_extracted)
                 logger.info(f"Extracted {len(targets_extracted)} targets from {item.drug_code}: {targets_extracted}")
 
-            # === 5. 记录保存日志 ===
+            # === 5. 统一提交事务 ===
+            # 所有关联操作完成后，一次性提交，确保原子性
+            db.commit()
+
+            # === 6. 记录保存日志 ===
             logger.info(
                 f"Saved pipeline: {item.drug_code} ({phase_normalized})" +
                 (f" [MoA: {detected_modality}]" if detected_modality else "") +

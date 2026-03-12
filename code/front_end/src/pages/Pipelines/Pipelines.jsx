@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { pipelineApi } from '../../api';
+import PhaseTimelineTooltip from '../../components/Pipeline/PhaseTimelineTooltip';
 
 const PHASES = ['Phase 1', 'Phase 2', 'Phase 3', 'Approved'];
 const PHASE_COLORS = {
@@ -208,9 +209,14 @@ export default function Pipelines() {
                         </span>
                       </td>
                       <td className="px-4 py-4">
-                        <span className={`tag ${PHASE_COLORS[pipeline.phase] || 'tag-gray'}`}>
-                          {pipeline.phase}
-                        </span>
+                        <PhaseTimelineTooltip pipelineId={pipeline.pipeline_id}>
+                          <span className={`tag ${PHASE_COLORS[pipeline.phase] || 'tag-gray'} flex items-center gap-1`}>
+                            {pipeline.phase}
+                            <svg className="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          </span>
+                        </PhaseTimelineTooltip>
                       </td>
                       <td className="px-4 py-4">
                         <span className="font-['JetBrains_Mono'] text-sm text-[#a0a0a0]">

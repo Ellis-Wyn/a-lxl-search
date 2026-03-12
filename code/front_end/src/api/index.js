@@ -17,6 +17,13 @@ export const pipelineApi = {
   getStats: (params) => api.get('/api/pipeline/statistics', { params }),
 };
 
+// Pipeline History API
+export const pipelineHistoryApi = {
+  getSummary: (pipelineId) => api.get(`/api/pipeline-history/${pipelineId}/summary`),
+  getTimeline: (pipelineId) => api.get(`/api/pipeline-history/${pipelineId}`),
+  getVelocity: (pipelineId) => api.get(`/api/pipeline-history/${pipelineId}/velocity`),
+};
+
 // Target API
 export const targetApi = {
   list: (params) => api.get('/api/v1/targets', { params }),

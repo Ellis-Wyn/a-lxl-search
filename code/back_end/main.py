@@ -262,6 +262,16 @@ from api.cde import router as cde_router
 app.include_router(cde_router)
 logger.info("✓ CDE 事件 路由已注册")
 
+# Pipeline History 路由
+from api.pipeline_history import router as pipeline_history_router
+app.include_router(pipeline_history_router)
+logger.info("✓ Pipeline History 路由已注册")
+
+# Admin 路由（P2优化 - 软删除管理）
+from api.admin import router as admin_router
+app.include_router(admin_router)
+logger.info("✓ Admin 路由已注册")
+
 # 静态文件服务
 import os
 static_dir = os.path.join(os.path.dirname(__file__), "static")
