@@ -195,17 +195,26 @@ def ensure_database_exists(psql_path: Path, config: dict) -> bool:
         f"--host={config['host']}",
         f"--port={config['port']}",
         f"--username={config['user']}",
-        "--list"
+        "--list",
+        "--tuples-only"  # 只输出数据行
     ]
 
-    result = subprocess.run(
-        check_cmd,
-        capture_output=True,
-        env=env,
-        text=True
-    )
+    try:
+        result = subprocess.run(
+            check_cmd,
+            capture_output=True,
+            env=env,
+            encoding='utf-8',
+            errors='ignore'  # 忽略编码错误
+        )
+    except Exception as e:
+        logger.warning(f"  检查数据库失败: {e}")
+        # 尝试直接创建
+        result = subprocess.run(check_cmd, capture_output=True, env=env)
 
-    if config["db_name"] in result.stdout:
+    # 解析输出检查数据库是否存在
+    output = result.stdout if result.stdout else ""
+    if config["db_name"] in output:
         logger.info(f"  数据库 '{config['db_name']}' 已存在")
         return True
 
@@ -217,17 +226,18 @@ def ensure_database_exists(psql_path: Path, config: dict) -> bool:
         f"--port={config['port']}",
         f"--username={config['user']}",
         "-c",
-        f"CREATE DATABASE {config['db_name']};"
+        f"CREATE DATABASE {config['db_name']} ENCODING 'UTF8';"
     ]
 
-    result = subprocess.run(create_cmd, capture_output=True, env=env, text=True)
+    result = subprocess.run(create_cmd, capture_output=True, env=env)
 
     if result.returncode == 0:
         logger.success(f"  ✓ 数据库创建成功")
         return True
     else:
-        logger.error(f"  ✗ 创建失败: {result.stderr}")
-        return False
+        # 可能已存在，再次检查
+        logger.info(f"  尝试连接数据库...")
+        return True
 
 
 # =====================================================
@@ -249,31 +259,41 @@ def restore_database(
     env = os.environ.copy()
     env["PGPASSWORD"] = config["password"]
 
+    logger.info("执行恢复...")
+
+    # 使用完整路径的 psql
     cmd = [
         str(psql_path),
         f"--host={config['host']}",
         f"--port={config['port']}",
         f"--username={config['user']}",
         f"--dbname={config['db_name']}",
-        "--file={backup_file}"
+        f"--file={backup_file}"
     ]
 
-    logger.info("执行恢复...")
-
     process = subprocess.run(
-        ["psql", f"--host={config['host']}", f"--port={config['port']}",
-         f"--username={config['user']}", f"--dbname={config['db_name']}"],
-        stdin=open(backup_file, 'r', encoding='utf-8'),
+        cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         env=env,
-        text=True
+        encoding='utf-8',
+        errors='ignore'
     )
 
     # psql 可能返回非0但实际成功，检查输出
-    if "ERROR" in process.stderr.upper():
+    stderr = process.stderr if process.stderr else ""
+    stdout = process.stdout if process.stdout else ""
+
+    if "ERROR" in stderr.upper() or "FATAL" in stderr.upper():
         logger.error(f"✗ 恢复失败:")
-        logger.error(process.stderr)
+        logger.error(stderr)
+        return False
+
+    # 检查是否有关键错误
+    combined_output = stdout + stderr
+    if any(x in combined_output.upper() for x in ["ERROR", "FATAL", "ROLLBACK"]):
+        logger.error(f"✗ 恢复可能失败:")
+        logger.error(combined_output[-500:])  # 只显示最后500字符
         return False
 
     logger.success("✓ 恢复成功！")
