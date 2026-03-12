@@ -768,78 +768,137 @@ class CompanySpiderBase:
             logger.error(f"Failed to discover pipeline URL from {homepage_url}: {e}")
             return None
 
+    def _build_analysis_text(self, item: PipelineDataItem) -> str:
+        """构建用于 MoA 识别和临床数据提取的文本"""
+        return f"{item.indication} {item.description or ''}".strip()
+
+    def _send_phase_jump_alert(self, item: PipelineDataItem, old_phase: str, new_phase: str) -> None:
+        """发送 Phase Jump 告警"""
+        logger.warning(
+            f"⚠️  Phase Jump detected: {item.drug_code} ({item.company_name}) "
+            f"{old_phase} → {new_phase}"
+        )
+
+        if not (hasattr(self, 'alert_service') and self.alert_service):
+            return
+
+        try:
+            alert = self.alert_service.create_phase_jump_alert(
+                company_name=item.company_name,
+                drug_code=item.drug_code,
+                old_phase=old_phase,
+                new_phase=new_phase
+            )
+            self.alert_service.send_alert(alert)
+            logger.info(f"✓ Phase Jump alert sent for {item.drug_code}")
+        except Exception as e:
+            logger.error(f"Failed to send phase jump alert: {e}")
+
+    def _link_targets_to_pipeline(self, db, pipeline, item: PipelineDataItem, targets: list) -> int:
+        """
+        将靶点关联到管线
+
+        Returns:
+            成功关联的靶点数量
+        """
+        linked_count = 0
+        evidence_source = "爬虫提取" if item.targets else "文本提取"
+
+        for target_name in targets:
+            try:
+                target = db.query(Target).filter(
+                    or_(
+                        Target.standard_name == target_name,
+                        Target.aliases.contains([target_name])
+                    )
+                ).first()
+
+                if not target:
+                    target = Target(
+                        standard_name=target_name,
+                        aliases=[],
+                        category="未知",
+                        description=f"自动创建于管线爬虫: {item.drug_code}"
+                    )
+                    db.add(target)
+                    db.commit()
+                    db.refresh(target)
+
+                # 检查是否已存在关联
+                existing_link = db.query(TargetPipeline).filter(
+                    TargetPipeline.target_id == target.target_id,
+                    TargetPipeline.pipeline_id == pipeline.pipeline_id
+                ).first()
+
+                if not existing_link:
+                    link = TargetPipeline(
+                        target_id=target.target_id,
+                        pipeline_id=pipeline.pipeline_id,
+                        relation_type="targets",
+                        evidence_snippet=f"{evidence_source}: {item.indication[:100]}"
+                    )
+                    db.add(link)
+                    linked_count += 1
+
+            except Exception as e:
+                logger.warning(f"Failed to link target {target_name}: {e}")
+
+        if linked_count > 0:
+            db.commit()
+
+        return linked_count
+
     def save_to_database(self, item: PipelineDataItem) -> bool:
         """
-        保存管线数据到数据库（集成MoA识别和临床数据提取）
+        保存管线数据到数据库
 
         Args:
             item: 管线数据项
 
         Returns:
             是否保存成功
-
-        Note:
-            - 自动重试数据库操作失败（最多3次）
-            - 失败时自动回滚事务
-            - 确保数据库连接正确关闭
-            - 自动识别药物作用机制和提取临床数据
         """
         db = None
         try:
             db = SessionLocal()
+            import json
 
-            # 1. 识别作用机制（MoA）
+            # === 1. MoA 识别 ===
             detected_modality = None
             moa_confidence = None
-            if not item.modality:  # 如果没有提供modality，尝试识别
+            if not item.modality:
                 try:
-                    text_for_moa = (
-                        item.indication + " " +
-                        (item.description or "")
-                    ).strip()
-
                     moa_result = detect_moa(
-                        text=text_for_moa,
+                        text=self._build_analysis_text(item),
                         title=item.drug_code
                     )
-
                     detected_modality = moa_result.modality
                     moa_confidence = moa_result.confidence
-
-                    if moa_confidence >= 0.7:  # 只在置信度高时使用识别结果
+                    if moa_confidence >= 0.7:
                         item.modality = detected_modality
                         logger.info(
                             f"MoA detected for {item.drug_code}: {detected_modality} "
                             f"(confidence: {moa_confidence:.2f})"
                         )
-
                 except Exception as e:
                     logger.warning(f"MoA detection failed for {item.drug_code}: {e}")
 
-            # 2. 提取临床数据
+            # === 2. 临床数据提取 ===
             clinical_metrics_dict = None
             try:
-                text_for_clinical = (
-                    item.indication + " " +
-                    (item.description or "")
-                ).strip()
-
-                clinical_metrics_dict = extract_clinical_metrics(text_for_clinical)
-
-                # 如果有临床指标，记录日志
+                clinical_metrics_dict = extract_clinical_metrics(self._build_analysis_text(item))
                 if clinical_metrics_dict and any(clinical_metrics_dict.values()):
                     logger.info(
                         f"Clinical metrics for {item.drug_code}: "
                         f"ORR={clinical_metrics_dict.get('ORR')}, "
                         f"PFS={clinical_metrics_dict.get('PFS')}, "
-                        f"OS={clinical_metrics_dict.get('OS')}, "
                         f"n={clinical_metrics_dict.get('Sample_Size')}"
                     )
-
             except Exception as e:
                 logger.warning(f"Clinical data extraction failed for {item.drug_code}: {e}")
 
-            # 检查是否已存在（使用 drug_code + company_name + indication 作为唯一键）
+            # === 3. 查找或创建管线 ===
+            phase_normalized = self.normalize_phase(item.phase)
             existing = db.query(Pipeline).filter(
                 Pipeline.drug_code == item.drug_code,
                 Pipeline.company_name == item.company_name,
@@ -847,136 +906,56 @@ class CompanySpiderBase:
             ).first()
 
             if existing:
-                # 标准化新phase
-                new_phase = self.normalize_phase(item.phase)
+                # 更新现有管线
                 old_phase = existing.phase
+                if old_phase != phase_normalized and self._is_phase_forward(old_phase, phase_normalized):
+                    self._send_phase_jump_alert(item, old_phase, phase_normalized)
 
-                # === Phase Jump 检测 ===
-                if old_phase != new_phase:
-                    # 只在"前进"时触发告警（Phase 1 → Phase 2）
-                    if self._is_phase_forward(old_phase, new_phase):
-                        logger.warning(
-                            f"⚠️  Phase Jump detected: {item.drug_code} ({item.company_name}) "
-                            f"{old_phase} → {new_phase}"
-                        )
+                existing.phase = phase_normalized
+                existing.phase_raw = item.phase
+                existing.last_seen_at = datetime.utcnow()
 
-                        # 触发Phase Jump告警
-                        if hasattr(self, 'alert_service') and self.alert_service:
-                            try:
-                                from services.alert_service import AlertType, AlertSeverity
-
-                                alert = self.alert_service.create_phase_jump_alert(
-                                    company_name=item.company_name,
-                                    drug_code=item.drug_code,
-                                    old_phase=old_phase,
-                                    new_phase=new_phase
-                                )
-                                self.alert_service.send_alert(alert)
-                                logger.info(f"✓ Phase Jump alert sent for {item.drug_code}")
-                            except Exception as alert_error:
-                                logger.error(f"Failed to send phase jump alert: {alert_error}")
-
-                    # 更新phase和phase_raw
-                    existing.phase = new_phase
-                    existing.phase_raw = item.phase
-
-                # 如果已存在且之前标记为discontinued，现在又出现了
                 if existing.status == 'discontinued' and item.status == 'active':
-                    # 重新激活
                     existing.status = 'active'
                     existing.discontinued_at = None
                     logger.info(f"Re-activated pipeline: {item.drug_code}")
 
-                # 更新 last_seen_at 和 modality（如果新识别的）
-                existing.last_seen_at = datetime.utcnow()
                 if detected_modality and moa_confidence >= 0.7:
                     existing.modality = detected_modality
 
                 db.commit()
-                logger.debug(f"Updated existing pipeline: {item.drug_code}")
-                return True
+                pipeline = existing
+            else:
+                # 创建新管线
+                pipeline = Pipeline(
+                    drug_code=item.drug_code,
+                    company_name=item.company_name,
+                    indication=item.indication,
+                    phase=phase_normalized,
+                    phase_raw=item.phase,
+                    modality=item.modality or detected_modality,
+                    source_url=item.source_url,
+                    first_seen_at=datetime.utcnow(),
+                    last_seen_at=datetime.utcnow(),
+                    status=item.status,
+                    is_combination=item.is_combination,
+                    combination_drugs=json.dumps(item.combination_drugs) if item.combination_drugs else None,
+                )
+                db.add(pipeline)
+                db.commit()
+                db.refresh(pipeline)
 
-            # 标准化阶段
-            phase_normalized = self.normalize_phase(item.phase)
+            # === 4. 处理靶点关联 ===
+            targets_extracted = [t for t in (item.targets or []) if t and t.strip()]
+            if not targets_extracted:
+                targets_extracted = self._extract_targets_from_text(item.indication)
+                targets_extracted = [t for t in targets_extracted if t and t.strip()]
 
-            # 序列化联合用药列表为JSON
-            import json
-            combination_drugs_json = json.dumps(item.combination_drugs) if item.combination_drugs else None
-
-            # 序列化临床数据（如果有）
-            clinical_data_json = None
-            if clinical_metrics_dict and any(clinical_metrics_dict.values()):
-                clinical_data_json = json.dumps(clinical_metrics_dict)
-
-            # 创建新管线
-            pipeline = Pipeline(
-                drug_code=item.drug_code,
-                company_name=item.company_name,
-                indication=item.indication,
-                phase=phase_normalized,
-                phase_raw=item.phase,
-                modality=item.modality or detected_modality,
-                source_url=item.source_url,
-                first_seen_at=datetime.utcnow(),
-                last_seen_at=datetime.utcnow(),
-                status=item.status,
-                is_combination=item.is_combination,
-                combination_drugs=combination_drugs_json,
-            )
-
-            db.add(pipeline)
-            db.commit()
-            db.refresh(pipeline)
-
-            # 提取并关联靶点
-            targets_extracted = self._extract_targets_from_text(item.indication)
             if targets_extracted:
+                linked_count = self._link_targets_to_pipeline(db, pipeline, item, targets_extracted)
                 logger.info(f"Extracted {len(targets_extracted)} targets from {item.drug_code}: {targets_extracted}")
 
-                for target_name in targets_extracted:
-                    try:
-                        # 查找或创建靶点
-                        target = db.query(Target).filter(
-                            or_(
-                                Target.standard_name == target_name,
-                                Target.aliases.contains([target_name])
-                            )
-                        ).first()
-
-                        if not target:
-                            # 如果靶点不存在，创建新靶点
-                            target = Target(
-                                standard_name=target_name,
-                                aliases=[],
-                                category="未知",
-                                description=f"自动创建于管线爬虫: {item.drug_code}"
-                            )
-                            db.add(target)
-                            db.commit()
-                            db.refresh(target)
-                            logger.info(f"Created new target: {target_name}")
-
-                        # 检查是否已存在关联
-                        existing_link = db.query(TargetPipeline).filter(
-                            TargetPipeline.target_id == target.target_id,
-                            TargetPipeline.pipeline_id == pipeline.pipeline_id
-                        ).first()
-
-                        if not existing_link:
-                            # 创建管线-靶点关联
-                            link = TargetPipeline(
-                                target_id=target.target_id,
-                                pipeline_id=pipeline.pipeline_id,
-                                relation_type="targets",
-                                evidence_snippet=f"从适应症提取: {item.indication}"
-                            )
-                            db.add(link)
-                            db.commit()
-                            logger.debug(f"Linked {item.drug_code} -> {target_name}")
-
-                    except Exception as target_error:
-                        logger.warning(f"Failed to link target {target_name}: {target_error}")
-
+            # === 5. 记录保存日志 ===
             logger.info(
                 f"Saved pipeline: {item.drug_code} ({phase_normalized})" +
                 (f" [MoA: {detected_modality}]" if detected_modality else "") +
