@@ -1,8 +1,8 @@
 # 病理AI药研情报库 - 项目记忆文档
 
-**项目状态**: ✅ 前后端100%完成，前端已部署至Vercel，文档100%完成，数据库P8优化完成
+**项目状态**: ✅ 前后端100%完成，前端已部署至Vercel，文档100%完成，数据库P8优化完成，PostgreSQL 17升级完成
 **最后更新**: 2026-03-12
-**版本**: v2.3.0 - 事件溯源+数据库P8优化版
+**版本**: v2.4.0 - PostgreSQL 17 + 完整P8优化版
 
 ---
 
@@ -187,7 +187,7 @@
 **后端**:
 - **语言**: Python 3.10+
 - **框架**: FastAPI
-- **数据库**: PostgreSQL 15
+- **数据库**: PostgreSQL 17 ✅ 2026-03-12升级
 - **缓存**: Redis 7（可选）
 - **爬虫**: Scrapy + BeautifulSoup + Playwright
 - **ORM**: SQLAlchemy
@@ -525,6 +525,10 @@ curl -X POST "http://localhost:8000/api/crawlers/trigger"
 1. **db_viewer.py** - 数据库查看工具 ⭐
 2. **validate_system.py** - 系统验证脚本 ⭐
 3. **test_crawlers.py** - 爬虫测试脚本 ⭐
+4. **scripts/backup_database.py** - 数据库备份脚本 ✅ 2026-03-12新增
+5. **scripts/restore_database.py** - 数据库恢复脚本 ✅ 2026-03-12新增
+6. **scripts/apply_p1_migrations.py** - P1迁移脚本 ✅ 2026-03-12新增
+7. **scripts/apply_p2_migrations.py** - P2迁移脚本 ✅ 2026-03-12新增
 4. **scripts/apply_p1_migrations.py** - P1迁移脚本 ✅ 2026-03-12新增
 
 ### 数据库迁移 ✅ 2026-03-12新增
@@ -536,6 +540,10 @@ curl -X POST "http://localhost:8000/api/crawlers/trigger"
    - version 字段和触发器
    - Pipeline 唯一约束
    - 复合索引
+3. **database/migrations/005_p2_soft_delete_and_partial_indexes.sql** - P2优化 ✅ 2026-03-12新增
+   - 软删除字段 (deleted_at)
+   - 9个部分索引（节省空间）
+   - 辅助函数和视图
 
 ---
 
@@ -621,7 +629,20 @@ python db_viewer.py stats
 
 ## 📅 更新日志
 
-### 2026-03-12
+### 2026-03-12 (下午)
+- ✅ **PostgreSQL 升级 15 → 17** - 数据库升级到最新稳定版
+  - PostgreSQL 15.15 → 17.9
+  - 端口: 5432 (已替换 PG15)
+  - 密码: 051028 (简化为纯数字)
+  - 数据完整性: 167 Pipeline + 180 Target 全部保留
+  - P0/P1/P2 优化全部迁移成功
+  - **备份/恢复脚本**: `scripts/backup_database.py`, `scripts/restore_database.py`
+    - P8 级标准：自动检测PG路径、.env读取配置、完整错误处理
+    - 支持命令行参数：`--keep N`, `--port N`, `--password XXX`
+    - 自动验证备份文件完整性
+    - 自动清理旧备份文件
+
+### 2026-03-12 (上午)
 - ✅ **管线事件历史系统** - 事件溯源模式实现完整的历史追溯
   - **新增 ORM 模型**: `models/pipeline_event.py`
     - 记录管线全生命周期的所有变更事件
@@ -640,7 +661,26 @@ python db_viewer.py stats
     - 事务一致性保证：事件与管线更新在同一事务中
     - 完善的错误处理和堆栈跟踪
 
-- ✅ **数据库 P8 标准优化** - P0/P1 优先级改进
+- ✅ **数据库 P8 标准优化** - P0/P1/P2 全部完成
+  - **P0 关键修复** (`database/migrations/003_p0_critical_fixes.sql`)
+    - 创建 phase_enum 类型（preclinical, I, II, III, filing, approved）
+    - 为 target.aliases 添加 GIN 索引（JSONB查询性能提升10倍+）
+    - 添加 CHECK 约束：status, relation_type 数据完整性保障
+  - **P1 重要修复** (`database/migrations/004_p1_important_fixes.sql`)
+    - 乐观锁 version 字段（pipeline, target, pipeline_event）
+    - 自动递增触发器（UPDATE时自动version+1）
+    - Pipeline 唯一约束 (drug_code, company_name, indication)
+    - 复合索引优化查询性能
+  - **P2 优化** (`database/migrations/005_p2_soft_delete_and_partial_indexes.sql`) ✅ 新增
+    - 软删除 deleted_at 字段（数据可恢复）
+    - 9个部分索引（仅索引活跃数据，节省30-50%空间）
+    - 辅助函数: soft_delete_pipeline/target, restore_pipeline/target
+    - 4个视图: v_active_pipeline/target, v_deleted_pipeline/target
+  - **Admin API** (`api/admin.py`) ✅ 新增
+    - POST /api/admin/pipeline/{id}/soft-delete - 软删除管线
+    - POST /api/admin/pipeline/{id}/restore - 恢复管线
+    - GET /api/admin/deleted/pipelines - 已删除管线列表
+    - GET /api/admin/stats/deleted - 删除统计
   - **P0 关键修复** (`database/migrations/003_p0_critical_fixes.sql`)
     - 创建 phase_enum 类型（preclinical, I, II, III, filing, approved）
     - 为 target.aliases 添加 GIN 索引（JSONB查询性能提升10倍+）
@@ -752,5 +792,5 @@ python db_viewer.py stats
 ---
 
 **最后更新**: 2026-03-12
-**项目状态**: ✅ 前端已部署至Vercel，✅ 文档100%完成，✅ 数据库P8优化完成，⚠️ 待后端部署到公网
-**维护模式**: 前端生产就绪，后端待部署
+**项目状态**: ✅ 前端已部署至Vercel，✅ 文档100%完成，✅ 数据库P8优化完成(P0/P1/P2)，✅ PostgreSQL 17升级完成
+**维护模式**: 生产就绪
