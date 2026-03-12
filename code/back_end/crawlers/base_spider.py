@@ -794,15 +794,28 @@ class CompanySpiderBase:
         except Exception as e:
             logger.error(f"Failed to send phase jump alert: {e}")
 
-    def _link_targets_to_pipeline(self, db, pipeline, item: PipelineDataItem, targets: list) -> int:
+    def _link_targets_to_pipeline(
+        self,
+        db: Session,
+        pipeline: Pipeline,
+        item: PipelineDataItem,
+        targets: list
+    ) -> int:
         """
         将靶点关联到管线
+
+        Args:
+            db: 数据库会话
+            pipeline: 管线对象
+            item: 管线数据项
+            targets: 靶点名称列表
 
         Returns:
             成功关联的靶点数量
         """
         linked_count = 0
-        evidence_source = "爬虫提取" if item.targets else "文本提取"
+        # 判断靶点来源：爬虫提取的非空列表 vs 文本回退提取
+        evidence_source = "爬虫提取" if item.targets and len(item.targets) > 0 else "文本提取"
 
         for target_name in targets:
             try:
