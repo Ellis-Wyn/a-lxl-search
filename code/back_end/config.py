@@ -194,11 +194,14 @@ class Settings(BaseSettings):
         """
         构建数据库连接 URL
         优先使用 DATABASE_URL 环境变量，否则从单独配置构建
-        格式：postgresql://user:password@host:port/dbname 或 sqlite:///./path/to/db.db
+        格式：postgresql://user:password@host:port/dbname?client_encoding=gbk
         """
         if self.DATABASE_URL:
-            return self.DATABASE_URL
-        return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+            # 如果DATABASE_URL已包含client_encoding则直接使用
+            if 'client_encoding' in self.DATABASE_URL:
+                return self.DATABASE_URL
+            return f"{self.DATABASE_URL}?client_encoding=gbk"
+        return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}?client_encoding=gbk"
 
     @property
     def redis_url(self) -> str:
@@ -220,9 +223,9 @@ class Settings(BaseSettings):
     def async_database_url(self) -> str:
         """
         构建异步数据库连接 URL
-        格式：postgresql+asyncpg://user:password@host:port/dbname
+        格式：postgresql+asyncpg://user:password@host:port/dbname?client_encoding=gbk
         """
-        return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}?client_encoding=gbk"
 
     class Config:
         """

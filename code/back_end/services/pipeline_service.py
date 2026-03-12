@@ -535,25 +535,92 @@ class PipelineService:
 
         Returns:
             统计信息
-
-        注意：当前版本返回模拟数据，数据库操作待实现
         """
-        # TODO: 数据库统计查询
-        logger.info(
-            "Get pipeline statistics (pending database)",
-            extra={
-                "company_name": company_name,
-                "target_id": target_id,
-            }
-        )
+        from sqlalchemy import func
+        from datetime import datetime, timedelta
 
-        return PipelineStats(
-            total_pipelines=0,
-            by_company={},
-            by_phase={},
-            by_target={},
-            phase_jump_count_30d=0,
-        )
+        db: Session = SessionLocal()
+        try:
+            # 构建查询
+            query = db.query(Pipeline)
+
+            # 应用过滤条件
+            if company_name:
+                from utils.company_name_mapper import get_company_mapper
+                mapper = get_company_mapper()
+                normalized_company = mapper.normalize(company_name)
+                if normalized_company:
+                    query = query.filter(Pipeline.company_name == normalized_company)
+
+            # 总数统计
+            total_pipelines = query.count()
+
+            # 按公司统计
+            by_company_query = query if not company_name else db.query(Pipeline)
+            if company_name:
+                from utils.company_name_mapper import get_company_mapper
+                mapper = get_company_mapper()
+                normalized_company = mapper.normalize(company_name)
+                if normalized_company:
+                    by_company_query = by_company_query.filter(Pipeline.company_name == normalized_company)
+
+            company_counts = by_company_query.with_entities(
+                Pipeline.company_name,
+                func.count(Pipeline.pipeline_id)
+            ).group_by(Pipeline.company_name).all()
+
+            by_company = {company: count for company, count in company_counts}
+
+            # 按阶段统计
+            phase_counts = query.with_entities(
+                Pipeline.phase,
+                func.count(Pipeline.pipeline_id)
+            ).group_by(Pipeline.phase).all()
+
+            by_phase = {phase: count for phase, count in phase_counts}
+
+            # 按靶点统计（通过关联表）
+            from models.relationships import TargetPipeline
+
+            target_query = db.query(
+                TargetPipeline.target_id,
+                func.count(TargetPipeline.pipeline_id)
+            ).group_by(TargetPipeline.target_id)
+
+            if target_id:
+                target_query = target_query.filter(TargetPipeline.target_id == target_id)
+
+            target_counts = target_query.all()
+            by_target = {str(target_id): count for target_id, count in target_counts}
+
+            # Phase Jump 统计（最近30天）
+            thirty_days_ago = datetime.now() - timedelta(days=30)
+            phase_jumps = db.query(Pipeline).filter(
+                Pipeline.updated_at >= thirty_days_ago
+            ).count()
+
+            logger.info(
+                "Pipeline statistics retrieved",
+                extra={
+                    "total_pipelines": total_pipelines,
+                    "company_count": len(by_company),
+                    "phase_count": len(by_phase)
+                }
+            )
+
+            return PipelineStats(
+                total_pipelines=total_pipelines,
+                by_company=by_company,
+                by_phase=by_phase,
+                by_target=by_target,
+                phase_jump_count_30d=phase_jumps,
+            )
+
+        except Exception as e:
+            logger.error(f"Error getting pipeline statistics: {e}")
+            raise
+        finally:
+            db.close()
 
     async def search_pipelines(
         self,

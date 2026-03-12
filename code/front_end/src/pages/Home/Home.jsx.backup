@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useSearch } from '../../context/SearchContext';
 import { Link } from 'react-router-dom';
-import { pipelineApi, targetApi } from '../../api';
 
 const tabs = [
   { id: 'all', label: '全部' },
@@ -15,14 +14,6 @@ export default function Home() {
   const { state, search, fetchSuggestions, setActiveTab, clearResults } = useSearch();
   const [inputValue, setInputValue] = useState('');
   const searchTimeoutRef = useRef(null);
-
-  // 首页统计数据状态
-  const [stats, setStats] = useState({
-    pipelineCount: 0,
-    targetCount: 0,
-    companyCount: 0
-  });
-  const [statsLoading, setStatsLoading] = useState(true);
 
   const performSearch = useCallback((query) => {
     if (searchTimeoutRef.current) {
@@ -47,39 +38,6 @@ export default function Home() {
       return () => clearTimeout(timer);
     }
   }, [inputValue, fetchSuggestions]);
-
-  // 获取首页统计数据
-  useEffect(() => {
-    const fetchDashboardStats = async () => {
-      try {
-        setStatsLoading(true);
-
-        // 并行调用多个API
-        const [pipelineStats, targetStats] = await Promise.all([
-          pipelineApi.getStats(),
-          targetApi.getStats()
-        ]);
-
-        setStats({
-          pipelineCount: pipelineStats.total_pipelines || 0,
-          targetCount: targetStats.total || 0,
-          companyCount: Object.keys(pipelineStats.by_company || {}).length
-        });
-      } catch (error) {
-        console.error('Failed to fetch dashboard stats:', error);
-        // 使用默认值防止UI崩溃
-        setStats({
-          pipelineCount: 0,
-          targetCount: 0,
-          companyCount: 0
-        });
-      } finally {
-        setStatsLoading(false);
-      }
-    };
-
-    fetchDashboardStats();
-  }, []);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -349,18 +307,9 @@ export default function Home() {
             animation: 'slideUp 0.8s ease-out 0.9s both'
           }}>
             {[
-              {
-                value: statsLoading ? '...' : stats.pipelineCount.toString(),
-                label: '管线数据'
-              },
-              {
-                value: statsLoading ? '...' : stats.targetCount.toString(),
-                label: '靶点信息'
-              },
-              {
-                value: statsLoading ? '...' : stats.companyCount.toString(),
-                label: '药企覆盖'
-              }
+              { value: '167', label: '管线数据' },
+              { value: '7', label: '靶点信息' },
+              { value: '14', label: '药企覆盖' }
             ].map((stat, index) => (
               <div
                 key={index}
@@ -372,15 +321,12 @@ export default function Home() {
                   border: '1px solid rgba(255, 255, 255, 0.06)',
                   borderRadius: '14px',
                   transition: 'all 0.3s',
-                  minWidth: '160px',
-                  opacity: statsLoading ? 0.6 : 1
+                  minWidth: '160px'
                 }}
                 onMouseEnter={(e) => {
-                  if (!statsLoading) {
-                    e.currentTarget.style.transform = 'translateY(-4px)';
-                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.12)';
-                    e.currentTarget.style.background = 'rgba(30, 30, 30, 0.6)';
-                  }
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.12)';
+                  e.currentTarget.style.background = 'rgba(30, 30, 30, 0.6)';
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.transform = 'translateY(0)';
