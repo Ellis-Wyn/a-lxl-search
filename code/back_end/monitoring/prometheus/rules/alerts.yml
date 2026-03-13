@@ -1,0 +1,195 @@
+# ==============================================
+# Prometheus告警规则 (P8标准)
+# ==============================================
+
+groups:
+  # ==================== 应用告警 ====================
+  - name: application_alerts
+    interval: 30s
+    rules:
+      # 服务下线
+      - alert: ServiceDown
+        expr: up{job="pathology-ai-app"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "服务 {{ $labels.job }} 下线"
+          description: "{{ $labels.instance }} 已下线超过1分钟"
+
+      # 高错误率
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total[5m]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "高错误率检测"
+          description: "错误率超过5%，当前值: {{ $value | humanizePercentage }}"
+
+      # 高延迟
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le)
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "API延迟过高"
+          description: "P95延迟超过1秒，当前值: {{ $value }}s"
+
+  # ==================== 数据库告警 ====================
+  - name: database_alerts
+    interval: 30s
+    rules:
+      # PostgreSQL连接数过高
+      - alert: PostgresConnectionsHigh
+        expr: |
+          (
+            pg_stat_database_numbackends{datname="pathology_ai"}
+            /
+            pg_settings_max_connections
+          ) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          team: dba
+        annotations:
+          summary: "PostgreSQL连接数过高"
+          description: "连接数使用率超过80%"
+
+      # PostgreSQL复制延迟
+      - alert: PostgresReplicationLag
+        expr: pg_replication_lag_seconds > 30
+        for: 5m
+        labels:
+          severity: warning
+          team: dba
+        annotations:
+          summary: "PostgreSQL复制延迟"
+          description: "复制延迟超过30秒: {{ $value }}s"
+
+      # 数据库大小增长过快
+      - alert: DatabaseGrowingFast
+        expr: |
+          delta(pg_database_size_bytes{datname="pathology_ai"}[1h])
+          / 1024 / 1024 > 100
+        for: 10m
+        labels:
+          severity: info
+          team: dba
+        annotations:
+          summary: "数据库增长过快"
+          description: "1小时内增长了{{ $value }}MB"
+
+  # ==================== Redis告警 ====================
+  - name: redis_alerts
+    interval: 30s
+    rules:
+      # Redis内存使用过高
+      - alert: RedisMemoryHigh
+        expr: |
+          (
+            redis_memory_used_bytes
+            /
+            redis_memory_max_bytes
+          ) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Redis内存使用过高"
+          description: "内存使用率超过90%"
+
+      # Redis连接数过高
+      - alert: RedisConnectionsHigh
+        expr: redis_connected_clients / redis_config_maxclients > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Redis连接数过高"
+          description: "连接数使用率超过80%"
+
+  # ==================== 系统资源告警 ====================
+  - name: system_alerts
+    interval: 30s
+    rules:
+      # 容器OOM
+      - alert: ContainerOOMKilled
+        expr: |
+          rate(container_oom_events_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: sre
+        annotations:
+          summary: "容器OOM"
+          description: "容器 {{ $labels.name }} 发生OOM"
+
+      # 磁盘空间不足
+      - alert: DiskSpaceLow
+        expr: |
+          (
+            node_filesystem_avail_bytes{fstype!="tmpfs"}
+            /
+            node_filesystem_size_bytes{fstype!="tmpfs"}
+          ) < 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: sre
+        annotations:
+          summary: "磁盘空间不足"
+          description: "{{ $labels.mountpoint }} 可用空间少于10%"
+
+  # ==================== 业务告警 ====================
+  - name: business_alerts
+    interval: 1m
+    rules:
+      # 爬虫失败率过高
+      - alert: CrawlerFailureRate
+        expr: |
+          (
+            sum(rate(crawler_requests_total{status="failed"}[10m]))
+            /
+            sum(rate(crawler_requests_total[10m]))
+          ) > 0.3
+        for: 10m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "爬虫失败率过高"
+          description: "爬虫失败率超过30%"
+
+      # API请求量异常
+      - alert: UnusualTraffic
+        expr: |
+          abs(
+            sum(rate(http_requests_total[5m]))
+            -
+            sum(rate(http_requests_total[1h] offset 55m))
+          )
+          /
+          sum(rate(http_requests_total[1h] offset 55m))
+          > 0.5
+        for: 10m
+        labels:
+          severity: info
+          team: backend
+        annotations:
+          summary: "API流量异常"
+          description: "请求量波动超过50%"
