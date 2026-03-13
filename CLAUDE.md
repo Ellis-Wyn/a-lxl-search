@@ -1,8 +1,8 @@
 # 病理AI药研情报库 - 项目记忆文档
 
-**项目状态**: ✅ 前后端100%完成，前端已部署至Vercel，文档100%完成，数据库P8优化完成，PostgreSQL 17升级完成
-**最后更新**: 2026-03-12
-**版本**: v2.4.0 - PostgreSQL 17 + 完整P8优化版
+**项目状态**: ✅ 前端已部署至Vercel，✅ 后端已部署至腾讯云，✅ 监控系统就绪，✅ 文档100%完成
+**最后更新**: 2026-03-13
+**版本**: v2.5.0 - 腾讯云生产部署 + P8监控完整版
 
 ---
 
@@ -274,13 +274,42 @@ A_lxl_search/
 
 **前端部署地址**: （需要用户添加实际Vercel域名）
 
-### 后端部署（待完成）⚠️
+### 后端部署（腾讯云）✅ 2026-03-13完成
 
-**当前状态**: 后端仅在本地运行（localhost:8000）
+**服务器信息**:
+- 配置: 腾讯云 2核4GB Ubuntu 22.04
+- 公网IP: 119.45.167.80
+- 内网IP: 10.206.0.5
 
-**问题**: 前端在Vercel公网环境无法访问本地后端
+**访问地址**:
+- API健康检查: http://119.45.167.80:8000/health
+- API文档: http://119.45.167.80:8000/docs
+- Grafana监控: http://119.45.167.80:3000 (admin/admin123)
 
-**解决方案（选择其一）**:
+**部署方式**: Docker Compose
+```bash
+cd /opt/a-lxl-search/code/back_end
+docker-compose up -d
+```
+
+**待完成**:
+- ⚠️ 安全组开放8000端口（或配置Nginx反向代理）
+- ⚠️ 域名解析
+- ⚠️ SSL证书配置
+- ⚠️ 前端API地址更新
+
+---
+
+### 前端配置待更新 ⚠️
+
+**当前问题**: 前端API地址仍为localhost:8000，无法访问生产后端
+
+**需要修改**:
+- 文件: `code/front_end/src/api/axios.js`
+- 当前: `baseURL: 'http://localhost:8000'`
+- 需要: `baseURL: 'http://119.45.167.80:8000'` (或配置域名后的HTTPS地址)
+
+---
 
 #### 方案1：部署到Zeabur（推荐）⭐
 - 注册 [Zeabur](https://zeabur.com)
@@ -395,7 +424,7 @@ curl -X POST "http://localhost:8000/api/crawlers/trigger"
 
 ## 📊 项目完成度
 
-**总体进度**: 95% ⚠️（前端已部署，后端待部署到公网）
+**总体进度**: 97% ⚠️（前后端已部署，待最终联调）
 
 | 模块 | 状态 | 完成度 |
 |------|------|--------|
@@ -416,7 +445,9 @@ curl -X POST "http://localhost:8000/api/crawlers/trigger"
 | 前端时间线组件 | ✅ | 100% (2026-03-12完成) |
 | 前端生产部署 | ✅ | 100% (2026-03-06完成) |
 | 后端本地部署 | ✅ | 100% |
-| 后端生产部署 | ⚠️ | 0% (待完成) |
+| 后端生产部署 | ✅ | 80% (2026-03-13腾讯云部署完成) |
+| 监控系统 | ✅ | 100% (Prometheus + Grafana) |
+| 部署脚本 | ✅ | 100% (部署/回滚/备份/健康检查) |
 | Docker部署 | ✅ | 100% |
 | 文档完善 | ✅ | 100% |
 | 专利模块 | ⏳ | 0% (可选功能) |
@@ -629,6 +660,34 @@ python db_viewer.py stats
 
 ## 📅 更新日志
 
+### 2026-03-13 腾讯云生产部署 ✅
+- ✅ **服务器采购**: 腾讯云 2核4GB Ubuntu 22.04
+  - 公网IP: 119.45.167.80
+  - Docker + Docker Compose 部署
+- ✅ **P8标准部署文件**: 完整的生产级部署配置
+  - `docker-compose.yml`: 资源限制、多环境支持、监控集成
+  - `Dockerfile`: 简化版构建、安全加固
+  - `scripts/deploy.sh`: 版本管理、备份、回滚
+  - `scripts/rollback.sh`: 一键回滚
+  - `scripts/backup.sh`: 自动备份
+  - `scripts/health-check.sh`: 健康检查
+- ✅ **监控系统**: Prometheus + Grafana + Exporters
+  - `monitoring/prometheus/prometheus.yml`: Prometheus配置
+  - `monitoring/prometheus/rules/alerts.yml`: 20+告警规则
+  - `monitoring/grafana/`: Grafana数据源和仪表板
+- ✅ **部署文档**: 完整的腾讯云部署指南
+  - `code/docs/TENCENT_DEPLOYMENT.md`: 详细部署步骤
+  - `code/docs/P8_DEPLOYMENT_STANDARD.md`: P8部署标准
+  - `code/docs/POST_DEPLOYMENT.md`: 部署后配置
+- ✅ **后端服务运行**: Docker Compose 启动成功
+  - pathology-ai-app: ✅ Up (healthy)
+  - pathology-ai-postgres: ✅ Up (healthy)
+  - pathology-ai-redis: ✅ Up (healthy)
+  - pathology-ai-prometheus: ✅ Up
+  - pathology-ai-grafana: ✅ Up
+  - exporters: ✅ Up
+- ⚠️ **待完成**: 安全组配置、域名解析、SSL证书
+
 ### 2026-03-12 (下午)
 - ✅ **PostgreSQL 升级 15 → 17** - 数据库升级到最新稳定版
   - PostgreSQL 15.15 → 17.9
@@ -791,6 +850,6 @@ python db_viewer.py stats
 
 ---
 
-**最后更新**: 2026-03-12
-**项目状态**: ✅ 前端已部署至Vercel，✅ 文档100%完成，✅ 数据库P8优化完成(P0/P1/P2)，✅ PostgreSQL 17升级完成
-**维护模式**: 生产就绪
+**最后更新**: 2026-03-13
+**项目状态**: ✅ 前端已部署至Vercel，✅ 后端已部署至腾讯云，✅ 监控系统就绪，✅ 文档100%完成
+**维护模式**: 生产运行中
