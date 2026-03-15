@@ -1,8 +1,13 @@
 {
+  "functions": {
+    "api/**/*.js": {
+      "runtime": "nodejs20.x"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "http://119.45.167.80:8000/api/:path*"
+      "destination": "/api/proxy?path=:path"
     },
     {
       "source": "/(.*)",
