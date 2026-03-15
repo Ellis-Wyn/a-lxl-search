@@ -3,15 +3,13 @@ import axios from 'axios';
 // ==============================================
 // API配置 - 根据环境自动切换
 // ==============================================
-// 开发环境: http://localhost:8000
-// 生产环境: http://119.45.167.80:8000 (腾讯云服务器)
+// 开发环境: http://localhost:8000 (直连后端)
+// 生产环境: /api (Vercel Serverless 代理，转发到后端)
 //
-// 修改方法：
-// 1. 直接修改下面的 API_BASE_URL
-// 2. 或在Vercel环境变量中设置: VITE_API_BASE_URL=http://119.45.167.80:8000
+// Vercel 代理会将 /api/* 转发到: http://119.45.167.80:8000/api/*
 // ==============================================
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ||
-                    (window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'http://119.45.167.80:8000');
+                    (window.location.hostname === 'localhost' ? 'http://localhost:8000' : '/api');
 
 const api = axios.create({
   baseURL: API_BASE_URL,
