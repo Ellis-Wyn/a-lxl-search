@@ -850,6 +850,46 @@ python db_viewer.py stats
 
 ---
 
-**最后更新**: 2026-03-13
+**最后更新**: 2026-03-15
 **项目状态**: ✅ 前端已部署至Vercel，✅ 后端已部署至腾讯云，✅ 监控系统就绪，✅ 文档100%完成
 **维护模式**: 生产运行中
+**⚠️ 未解决问题**: 前后端联调 - Mixed Content 错误（见下文）
+
+---
+
+## ⚠️ 前后端联调问题（2026-03-15 记录）
+
+### 问题概述
+前端已部署到 Vercel（https://lxlsearch.com），后端已部署到腾讯云（http://119.45.167.80:8000），但前后端无法正常通信。
+
+### 根本原因：Mixed Content 错误
+- **前端协议**: HTTPS (Vercel 强制 HTTPS)
+- **后端协议**: HTTP (腾讯云未配置 SSL)
+- **浏览器限制**: 出于安全考虑，浏览器阻止从 HTTPS 页面向 HTTP 端点发送请求
+
+### 已尝试的解决方案
+1. ✅ 修改后端 CORS 配置 - 添加 `lxlsearch.com` 到允许来源
+2. ✅ 修改前端 API 配置 - 指向腾讯云后端地址
+3. ❌ Vercel serverless function 代理 - Vite 项目不支持
+4. ❌ Vercel rewrites 代理 - 不支持代理到外部 HTTP 服务器
+5. ⏳ Cloudflare Tunnel - 安装中（因网络问题未完成）
+
+### 待完成的解决方案
+| 方案 | 状态 | 说明 |
+|------|------|------|
+| Cloudflare Tunnel | ⏳ 进行中 | 需要安装 cloudflared，域名已在 Cloudflare |
+| 后端配置 HTTPS | ❌ 未开始 | 需要 SSL 证书，配置 Nginx |
+| 使用免费代理服务 | ❌ 未开始 | 如 Cloudflare Workers |
+| 部署后端到支持 HTTPS 的平台 | ❌ 未开始 | 如 Render, Railway, Zeabur |
+
+### 相关配置文件
+- 后端 CORS: `code/back_end/core/middleware.py`
+- 前端 API: `code/front_end/src/api/axios.js`
+- Vercel 配置: `code/front_end/vercel.json`
+
+### 数据库状态
+- ✅ 数据库已初始化
+- ✅ 后端 API 可通过 curl 访问
+- ✅ 包含 6 条靶点数据（EGFR, HER2, PD-1, PD-L1, ALK, VEGFR）
+
+---
