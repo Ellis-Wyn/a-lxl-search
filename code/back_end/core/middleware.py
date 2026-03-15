@@ -217,6 +217,10 @@ def setup_cors(app) -> None:
     allow_origins = ["*"] if settings.DEBUG else [
         "http://localhost:3000",
         "http://localhost:8000",
+        "https://lxlsearch.com",  # 生产环境自定义域名
+        "https://www.lxlsearch.com",  # www子域名
+        # Vercel自动分配的域名（如果有）
+        # "https://your-project.vercel.app",
     ]
 
     app.add_middleware(
